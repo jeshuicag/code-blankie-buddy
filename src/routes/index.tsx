@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { PhotoCropper } from "@/components/PhotoCropper";
+import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { makeReel } from "@/lib/make-reel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -44,6 +46,8 @@ function Index() {
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [cropping, setCropping] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [voice, setVoice] = useState<Blob | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
 
   // Give each device a permanent random ID the first time the app opens.
   useEffect(() => {
@@ -123,6 +127,12 @@ function Index() {
       const formData = new FormData();
       formData.append("picture", file);
       formData.append("userId", userId);
+      if (voice) {
+        setProgress(0);
+        const reel = await makeReel(file, voice, setProgress);
+        setProgress(null);
+        formData.append("video", reel);
+      }
       const response = await fetch("/api/public/upload", {
         method: "POST",
         body: formData,
@@ -273,13 +283,21 @@ function Index() {
           </button>
         </div>
 
+        <VoiceRecorder recording={voice} onChange={setVoice} />
+
         <button
           type="button"
           onClick={sendPicture}
           disabled={!file || !userId || cropping || status === "uploading"}
           className="mt-3 inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {status === "uploading" ? "Sending…" : "Send to server"}
+          {progress !== null
+            ? `Making Reel… ${Math.round(progress * 100)}%`
+            : status === "uploading"
+              ? "Sending…"
+              : voice
+                ? "Send as Reel"
+                : "Send to server"}
         </button>
 
         {status === "success" && result && (
