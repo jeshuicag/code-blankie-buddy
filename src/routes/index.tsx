@@ -64,7 +64,8 @@ function Index() {
     const file = new File([contents], filename, { type: "text/plain" });
 
     // On phones, the share sheet is the reliable way to save a file.
-    if (navigator.canShare?.({ files: [file] })) {
+    const isPhone = window.matchMedia("(pointer: coarse)").matches;
+    if (isPhone && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: "Photo Upload key" });
         return;
