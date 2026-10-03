@@ -102,7 +102,7 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
   writeStr(36, "data");
   bytes.setUint32(40, data.length * 2, true);
   for (let i = 0; i < data.length; i++) {
-    const s = Math.max(-1, Math.min(1, data[i]));
+    const s = Math.max(-1, Math.min(1, data[i] ?? 0));
     bytes.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
   }
   return new Blob([bytes.buffer], { type: "audio/wav" });
