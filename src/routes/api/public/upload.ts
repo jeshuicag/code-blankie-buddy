@@ -52,7 +52,7 @@ export const Route = createFileRoute("/api/public/upload")({
           if (!presignRes.ok) {
             const detail = await presignRes.text();
             return new Response(`Zernio media upload failed: ${detail}`, {
-              status: 502,
+              status: 422,
             });
           }
           const presign = (await presignRes.json()) as {
@@ -69,7 +69,7 @@ export const Route = createFileRoute("/api/public/upload")({
           if (!putRes.ok) {
             const detail = await putRes.text();
             return new Response(`Zernio media upload failed: ${detail}`, {
-              status: 502,
+              status: 422,
             });
           }
 
@@ -80,7 +80,7 @@ export const Route = createFileRoute("/api/public/upload")({
           if (!accountsRes.ok) {
             const detail = await accountsRes.text();
             return new Response(`Could not list Zernio accounts: ${detail}`, {
-              status: 502,
+              status: 422,
             });
           }
           const { accounts } = (await accountsRes.json()) as {
@@ -110,7 +110,7 @@ export const Route = createFileRoute("/api/public/upload")({
           if (!postRes.ok) {
             const detail = await postRes.text();
             return new Response(`Zernio could not publish the post: ${detail}`, {
-              status: 502,
+              status: 422,
             });
           }
           const post = (await postRes.json()) as { post?: { _id?: string } };
