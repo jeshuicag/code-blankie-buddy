@@ -181,7 +181,7 @@ function Index() {
         <button
           type="button"
           onClick={sendPicture}
-          disabled={!file || status === "uploading"}
+          disabled={!file || cropping || status === "uploading"}
           className="mt-3 inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "uploading" ? "Sending…" : "Send to server"}
