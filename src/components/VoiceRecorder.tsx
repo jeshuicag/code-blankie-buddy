@@ -34,11 +34,11 @@ class PitchShifter extends AudioWorkletProcessor {
     const f = idx - i0;
     return this.buf[i0] * (1 - f) + this.buf[i1] * f;
   }
-  process(inputs, outputs) {
+  process(inputs, outputs, parameters) {
     const inp = inputs[0] && inputs[0][0];
     const out = outputs[0][0];
     if (!inp) return true;
-    const ratio = this.parameters.get("ratio").value ?? this.parameters.get("ratio")[0];
+    const ratio = parameters.ratio[0];
     for (let i = 0; i < out.length; i++) {
       this.buf[this.wp] = inp[i];
       this.phase += (1 - ratio) / this.delay;
