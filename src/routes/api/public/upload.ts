@@ -3,6 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
 const MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB — Instagram's limit
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // keep well under Instagram's 300 MB Reel limit
 
 const ZERNIO_BASE = "https://zernio.com/api/v1";
 
@@ -32,12 +33,27 @@ export const Route = createFileRoute("/api/public/upload")({
           });
         }
 
+        // Optional Reel video (picture + voice recording, made on the device).
+        const videoField = formData.get("video");
+        const video = videoField instanceof File ? videoField : null;
+        if (video) {
+          if (video.type !== "video/mp4") {
+            return new Response("Reels must be MP4 videos", { status: 415 });
+          }
+          if (video.size > MAX_VIDEO_BYTES) {
+            return new Response("Reel is too large (max 100 MB)", { status: 413 });
+          }
+        }
+        const media = video ?? picture;
+        const mediaType = video ? "video" : "image";
+
         const apiKey = process.env["ZERNIO_API_KEY"];
         if (!apiKey) {
           return new Response("Zernio API key is not configured", { status: 500 });
         }
 
         const buffer = Buffer.from(await picture.arrayBuffer());
+        const mediaBuffer = video ? Buffer.from(await video.arrayBuffer()) : buffer;
         const authHeaders = {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
@@ -49,8 +65,8 @@ export const Route = createFileRoute("/api/public/upload")({
             method: "POST",
             headers: authHeaders,
             body: JSON.stringify({
-              filename: picture.name || "photo.jpg",
-              contentType: picture.type,
+              filename: media.name || (video ? "reel.mp4" : "photo.jpg"),
+              contentType: media.type,
             }),
           });
           if (!presignRes.ok) {
@@ -64,11 +80,11 @@ export const Route = createFileRoute("/api/public/upload")({
             publicUrl: string;
           };
 
-          // 2. Upload the picture bytes directly to that URL.
+          // 2. Upload the media bytes directly to that URL.
           const putRes = await fetch(presign.uploadUrl, {
             method: "PUT",
-            headers: { "Content-Type": picture.type },
-            body: new Uint8Array(buffer),
+            headers: { "Content-Type": media.type },
+            body: new Uint8Array(mediaBuffer),
           });
           if (!putRes.ok) {
             const detail = await putRes.text();
@@ -106,7 +122,7 @@ export const Route = createFileRoute("/api/public/upload")({
             headers: authHeaders,
             body: JSON.stringify({
               content: `#pu${userId}`,
-              mediaItems: [{ type: "image", url: presign.publicUrl }],
+              mediaItems: [{ type: mediaType, url: presign.publicUrl }],
               platforms: [{ platform: "instagram", accountId: instagram._id }],
               publishNow: true,
             }),
