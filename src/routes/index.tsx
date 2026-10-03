@@ -144,6 +144,7 @@ function Index() {
       setResult((await response.json()) as UploadResult);
       setStatus("success");
     } catch (error) {
+      setProgress(null);
       setErrorMessage(
         error instanceof Error ? error.message : "Upload failed",
       );
