@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
+import smartcrop from "smartcrop";
 
 // Instagram feed aspect ratios (all within the allowed 4:5 – 1.91:1 range).
 const RATIOS = [
