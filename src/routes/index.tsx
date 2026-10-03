@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import { PhotoCropper } from "@/components/PhotoCropper";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -39,19 +40,25 @@ function Index() {
   >("idle");
   const [result, setResult] = useState<UploadResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const [cropping, setCropping] = useState(false);
 
   function pickFile(selected: File | null) {
     if (!selected) return;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl);
+    if (originalUrl) URL.revokeObjectURL(originalUrl);
+    const url = URL.createObjectURL(selected);
     setFile(selected);
-    setPreviewUrl(URL.createObjectURL(selected));
+    setOriginalUrl(url);
+    setPreviewUrl(url);
+    setCropping(true);
     setStatus("idle");
     setResult(null);
     setErrorMessage(null);
   }
 
   async function sendPicture() {
-    if (!file || status === "uploading") return;
+    if (!file || cropping || status === "uploading") return;
     setStatus("uploading");
     setErrorMessage(null);
     try {
@@ -76,15 +83,19 @@ function Index() {
   }
 
   function reset() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl);
+    if (originalUrl) URL.revokeObjectURL(originalUrl);
     setFile(null);
     setPreviewUrl(null);
+    setOriginalUrl(null);
+    setCropping(false);
     setStatus("idle");
     setResult(null);
     setErrorMessage(null);
     if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (libraryInputRef.current) libraryInputRef.current.value = "";
   }
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
@@ -114,19 +125,41 @@ function Index() {
           onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
         />
 
-        {previewUrl ? (
-          <div className="mt-5 overflow-hidden rounded-xl border border-border">
-            <img
-              src={previewUrl}
-              alt="Selected picture preview"
-              className="max-h-72 w-full object-cover"
-            />
+        {previewUrl && cropping ? (
+          <PhotoCropper
+            src={originalUrl ?? previewUrl}
+            fileName={file?.name ?? "photo.jpg"}
+            onCancel={reset}
+            onDone={(cropped) => {
+              if (previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl);
+              setFile(cropped);
+              setPreviewUrl(URL.createObjectURL(cropped));
+              setCropping(false);
+            }}
+          />
+        ) : previewUrl ? (
+          <div className="mt-5">
+            <div className="overflow-hidden rounded-xl border border-border">
+              <img
+                src={previewUrl}
+                alt="Cropped picture preview"
+                className="max-h-72 w-full object-contain"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setCropping(true)}
+              className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Adjust crop
+            </button>
           </div>
         ) : (
           <div className="mt-5 flex h-48 items-center justify-center rounded-xl border-2 border-dashed border-border text-sm text-muted-foreground">
             No picture selected yet
           </div>
         )}
+
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button
@@ -148,7 +181,7 @@ function Index() {
         <button
           type="button"
           onClick={sendPicture}
-          disabled={!file || status === "uploading"}
+          disabled={!file || cropping || status === "uploading"}
           className="mt-3 inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "uploading" ? "Sending…" : "Send to server"}
