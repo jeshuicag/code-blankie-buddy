@@ -33,6 +33,7 @@ type UploadResult = {
 function Index() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
+  const keyFileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<
@@ -53,6 +54,36 @@ function Index() {
     }
     setUserId(id);
   }, []);
+
+  // Download a small key file containing the user's ID so they can
+  // restore it later (e.g. after clearing browser data or switching phones).
+  function saveKeyFile() {
+    if (!userId) return;
+    const contents = `Photo Upload key file\nKeep this file safe. It restores your personal Instagram hashtag.\n\n${userId}\n`;
+    const blob = new Blob([contents], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `photo-key-${userId.slice(0, 8)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Restore the ID from a previously saved key file.
+  async function restoreKeyFile(selected: File | null) {
+    if (!selected) return;
+    const text = await selected.text();
+    const match = text.match(/[a-f0-9]{32}/);
+    if (!match) {
+      setErrorMessage("That file doesn't contain a valid key.");
+      setStatus("error");
+      return;
+    }
+    localStorage.setItem("photoUserId", match[0]);
+    setUserId(match[0]);
+    setStatus("idle");
+    setErrorMessage(null);
+  }
 
   function pickFile(selected: File | null) {
     if (!selected) return;
