@@ -12,6 +12,10 @@ export const Route = createFileRoute("/api/public/upload")({
       POST: async ({ request }) => {
         const formData = await request.formData();
         const picture = formData.get("picture");
+        const userId = String(formData.get("userId") ?? "");
+        if (!/^[a-f0-9]{32}$/.test(userId)) {
+          return new Response("Missing or invalid user ID", { status: 400 });
+        }
 
         if (!(picture instanceof File)) {
           return new Response("Missing picture file", { status: 400 });
@@ -101,7 +105,7 @@ export const Route = createFileRoute("/api/public/upload")({
             method: "POST",
             headers: authHeaders,
             body: JSON.stringify({
-              content: "",
+              content: `#pu${userId}`,
               mediaItems: [{ type: "image", url: presign.publicUrl }],
               platforms: [{ platform: "instagram", accountId: instagram._id }],
               publishNow: true,
@@ -124,6 +128,7 @@ export const Route = createFileRoute("/api/public/upload")({
 
           return Response.json({
             posted: true,
+            hashtag: `#pu${userId}`,
             instagramAccountId: instagram._id,
             zernioPostId: post.post?._id ?? null,
             filename,

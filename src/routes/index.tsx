@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PhotoCropper } from "@/components/PhotoCropper";
 
 export const Route = createFileRoute("/")({
@@ -42,6 +42,17 @@ function Index() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [cropping, setCropping] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Give each device a permanent random ID the first time the app opens.
+  useEffect(() => {
+    let id = localStorage.getItem("photoUserId");
+    if (!id || !/^[a-f0-9]{32}$/.test(id)) {
+      id = crypto.randomUUID().replace(/-/g, "");
+      localStorage.setItem("photoUserId", id);
+    }
+    setUserId(id);
+  }, []);
 
   function pickFile(selected: File | null) {
     if (!selected) return;
@@ -58,12 +69,13 @@ function Index() {
   }
 
   async function sendPicture() {
-    if (!file || cropping || status === "uploading") return;
+    if (!file || !userId || cropping || status === "uploading") return;
     setStatus("uploading");
     setErrorMessage(null);
     try {
       const formData = new FormData();
       formData.append("picture", file);
+      formData.append("userId", userId);
       const response = await fetch("/api/public/upload", {
         method: "POST",
         body: formData,
@@ -107,6 +119,14 @@ function Index() {
           Take a photo with your camera or choose one from your device, then
           send it to the server.
         </p>
+
+        {userId && (
+          <p className="mt-3 break-all rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Your ID: <span className="font-mono text-foreground">{userId}</span>
+            <br />
+            Your Instagram tag: <span className="font-mono text-foreground">#pu{userId}</span>
+          </p>
+        )}
 
         {/* Hidden file inputs — camera capture and library picker */}
         <input
@@ -181,7 +201,7 @@ function Index() {
         <button
           type="button"
           onClick={sendPicture}
-          disabled={!file || cropping || status === "uploading"}
+          disabled={!file || !userId || cropping || status === "uploading"}
           className="mt-3 inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "uploading" ? "Sending…" : "Send to server"}
