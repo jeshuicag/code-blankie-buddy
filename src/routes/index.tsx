@@ -57,16 +57,31 @@ function Index() {
 
   // Download a small key file containing the user's ID so they can
   // restore it later (e.g. after clearing browser data or switching phones).
-  function saveKeyFile() {
+  async function saveKeyFile() {
     if (!userId) return;
     const contents = `Photo Upload key file\nKeep this file safe. It restores your personal Instagram hashtag.\n\n${userId}\n`;
-    const blob = new Blob([contents], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
+    const filename = `photo-key-${userId.slice(0, 8)}.txt`;
+    const file = new File([contents], filename, { type: "text/plain" });
+
+    // On phones, the share sheet is the reliable way to save a file.
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "Photo Upload key" });
+        return;
+      } catch {
+        // User cancelled or share failed — fall through to download.
+      }
+    }
+
+    const url = URL.createObjectURL(new Blob([contents], { type: "text/plain" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `photo-key-${userId.slice(0, 8)}.txt`;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   // Restore the ID from a previously saved key file.
