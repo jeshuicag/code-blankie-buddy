@@ -55,6 +55,59 @@ class PitchShifter extends AudioWorkletProcessor {
 registerProcessor("pitch-shifter", PitchShifter);
 `;
 
+let workletUrl: string | null = null;
+function getWorkletUrl(): string {
+  if (!workletUrl) {
+    workletUrl = URL.createObjectURL(new Blob([WORKLET_CODE], { type: "application/javascript" }));
+  }
+  return workletUrl;
+}
+
+// Renders `raw` through the pitch shifter offline and returns a WAV blob.
+async function pitchShift(raw: Blob, ratio: number): Promise<Blob> {
+  const decodeCtx = new AudioContext();
+  const buffer = await decodeCtx.decodeAudioData(await raw.arrayBuffer());
+  await decodeCtx.close();
+
+  const offline = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
+  await offline.audioWorklet.addModule(getWorkletUrl());
+  const src = offline.createBufferSource();
+  src.buffer = buffer;
+  const shifter = new AudioWorkletNode(offline, "pitch-shifter");
+  shifter.parameters.get("ratio")!.value = ratio;
+  src.connect(shifter).connect(offline.destination);
+  src.start();
+  const rendered = await offline.startRendering();
+  return audioBufferToWav(rendered);
+}
+
+// Minimal 16-bit PCM WAV encoder.
+function audioBufferToWav(buffer: AudioBuffer): Blob {
+  const data = buffer.getChannelData(0);
+  const bytes = new DataView(new ArrayBuffer(44 + data.length * 2));
+  const writeStr = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) bytes.setUint8(off + i, s.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  bytes.setUint32(4, 36 + data.length * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  bytes.setUint32(16, 16, true);
+  bytes.setUint16(20, 1, true); // PCM
+  bytes.setUint16(22, 1, true); // mono
+  bytes.setUint32(24, buffer.sampleRate, true);
+  bytes.setUint32(28, buffer.sampleRate * 2, true);
+  bytes.setUint16(32, 2, true);
+  bytes.setUint16(34, 16, true);
+  writeStr(36, "data");
+  bytes.setUint32(40, data.length * 2, true);
+  for (let i = 0; i < data.length; i++) {
+    const s = Math.max(-1, Math.min(1, data[i] ?? 0));
+    bytes.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([bytes.buffer], { type: "audio/wav" });
+}
+
 export function VoiceRecorder({
   recording,
   onChange,
@@ -63,13 +116,14 @@ export function VoiceRecorder({
   onChange: (blob: Blob | null) => void;
 }) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [preset, setPreset] = useState<VoicePreset>("normal");
+  const rawRef = useRef<Blob | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     if (!recording) {
@@ -83,41 +137,40 @@ export function VoiceRecorder({
 
   useEffect(() => () => stop(), []);
 
+  // Re-process the kept raw recording whenever the preset changes.
+  async function applyPreset(raw: Blob, next: VoicePreset) {
+    const ratio = PRESETS.find((p) => p.id === next)!.ratio;
+    if (ratio === 1) {
+      onChange(raw);
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      onChange(await pitchShift(raw, ratio));
+    } catch {
+      setError("Voice disguise isn't supported here — keeping your normal voice.");
+      onChange(raw);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  function pickPreset(next: VoicePreset) {
+    setPreset(next);
+    setError(null);
+    if (rawRef.current) void applyPreset(rawRef.current, next);
+  }
+
   async function start() {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      let recordStream: MediaStream = stream;
-
-      const ratio = PRESETS.find((p) => p.id === preset)!.ratio;
-      if (ratio !== 1) {
-        try {
-          const ctx = new AudioContext();
-          const workletUrl = URL.createObjectURL(
-            new Blob([WORKLET_CODE], { type: "application/javascript" }),
-          );
-          await ctx.audioWorklet.addModule(workletUrl);
-          URL.revokeObjectURL(workletUrl);
-          const src = ctx.createMediaStreamSource(stream);
-          const shifter = new AudioWorkletNode(ctx, "pitch-shifter");
-          shifter.parameters.get("ratio")!.value = ratio;
-          const dest = ctx.createMediaStreamDestination();
-          src.connect(shifter).connect(dest);
-          audioCtxRef.current = ctx;
-          recordStream = dest.stream;
-        } catch {
-          setError("Voice disguise isn't supported here — recording your normal voice.");
-        }
-      }
-
-      const rec = new MediaRecorder(recordStream);
+      const rec = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       const startedAt = Date.now();
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        void audioCtxRef.current?.close();
-        audioCtxRef.current = null;
         if (timerRef.current) clearInterval(timerRef.current);
         setIsRecording(false);
         const secs = (Date.now() - startedAt) / 1000;
@@ -125,7 +178,9 @@ export function VoiceRecorder({
           setError(`Recordings must be at least ${MIN_SECONDS} seconds long.`);
           return;
         }
-        onChange(new Blob(chunks, { type: rec.mimeType || "audio/webm" }));
+        const raw = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+        rawRef.current = raw;
+        void applyPreset(raw, preset);
       };
       recorderRef.current = rec;
       rec.start();
@@ -147,6 +202,11 @@ export function VoiceRecorder({
     recorderRef.current = null;
   }
 
+  function clear() {
+    rawRef.current = null;
+    onChange(null);
+  }
+
   return (
     <div className="mt-4 rounded-xl border border-border p-3">
       <p className="text-sm font-medium text-foreground">Voice recording (optional)</p>
@@ -154,28 +214,26 @@ export function VoiceRecorder({
         Add your voice to turn the picture into a Reel. {MIN_SECONDS}–{MAX_SECONDS} seconds.
       </p>
 
-      {!url && (
-        <div className="mt-3">
-          <p className="text-xs font-medium text-muted-foreground">Voice disguise</p>
-          <div className="mt-1 grid grid-cols-3 gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                disabled={isRecording}
-                onClick={() => setPreset(p.id)}
-                className={`rounded-md border px-2 py-2 text-xs font-medium ${
-                  preset === p.id
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-input bg-background text-foreground hover:bg-accent"
-                } disabled:opacity-50`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+      <div className="mt-3">
+        <p className="text-xs font-medium text-muted-foreground">Voice disguise</p>
+        <div className="mt-1 grid grid-cols-3 gap-2">
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              disabled={isRecording || isProcessing}
+              onClick={() => pickPreset(p.id)}
+              className={`rounded-md border px-2 py-2 text-xs font-medium ${
+                preset === p.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input bg-background text-foreground hover:bg-accent"
+              } disabled:opacity-50`}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       {isRecording ? (
         <button
@@ -188,11 +246,14 @@ export function VoiceRecorder({
       ) : url ? (
         <div className="mt-3">
           <audio src={url} controls className="w-full" />
+          {isProcessing && (
+            <p className="mt-1 text-xs text-muted-foreground">Changing voice…</p>
+          )}
           <div className="mt-2 grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => {
-                onChange(null);
+                clear();
                 void start();
               }}
               className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
@@ -201,7 +262,7 @@ export function VoiceRecorder({
             </button>
             <button
               type="button"
-              onClick={() => onChange(null)}
+              onClick={clear}
               className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-destructive hover:bg-accent"
             >
               🗑 Delete
@@ -212,7 +273,8 @@ export function VoiceRecorder({
         <button
           type="button"
           onClick={start}
-          className="mt-3 w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
+          disabled={isProcessing}
+          className="mt-3 w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
         >
           🎙 Record voice
         </button>
