@@ -152,11 +152,39 @@ function Index() {
         </p>
 
         {userId && (
-          <p className="mt-3 break-all rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-            Your ID: <span className="font-mono text-foreground">{userId}</span>
-            <br />
-            Your Instagram tag: <span className="font-mono text-foreground">#pu{userId}</span>
-          </p>
+          <div className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            <p className="break-all">
+              Your ID: <span className="font-mono text-foreground">{userId}</span>
+              <br />
+              Your Instagram tag: <span className="font-mono text-foreground">#pu{userId}</span>
+            </p>
+            <div className="mt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={saveKeyFile}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Save key file
+              </button>
+              <button
+                type="button"
+                onClick={() => keyFileInputRef.current?.click()}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Restore key
+              </button>
+            </div>
+            <input
+              ref={keyFileInputRef}
+              type="file"
+              accept=".txt,text/plain"
+              className="hidden"
+              onChange={(e) => {
+                void restoreKeyFile(e.target.files?.[0] ?? null);
+                e.target.value = "";
+              }}
+            />
+          </div>
         )}
 
         {/* Hidden file inputs — camera capture and library picker */}
