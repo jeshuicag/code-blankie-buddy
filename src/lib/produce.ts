@@ -23,7 +23,8 @@ function loadModel() {
       const tf = await import("@tensorflow/tfjs");
       const mobilenet = await import("@tensorflow-models/mobilenet");
       const [base, head] = await Promise.all([
-        mobilenet.load({ version: 2, alpha: 0.5 }),
+        // Bundled with the app (public/models/mobilenet) so the first open works offline.
+        mobilenet.load({ version: 2, alpha: 0.5, modelUrl: "/models/mobilenet/model.json" }),
         tf.loadLayersModel("/models/produce/model.json"),
       ]);
       return { tf, base, head };
