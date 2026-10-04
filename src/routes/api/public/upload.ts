@@ -131,11 +131,14 @@ export const Route = createFileRoute("/api/public/upload")({
           }
 
           // 4. Publish the post to Instagram right away.
+          const captionLines = [`#pu${userId}`];
+          if (location) captionLines.push(`📍 ${location}`);
+          if (phone) captionLines.push(`📞 ${phone}`);
           const postRes = await fetch(`${ZERNIO_BASE}/posts`, {
             method: "POST",
             headers: authHeaders,
             body: JSON.stringify({
-              content: `#pu${userId}`,
+              content: captionLines.join("\n"),
               mediaItems: [{ type: mediaType, url: presign.publicUrl }],
               platforms: [{ platform: "instagram", accountId: instagram._id }],
               publishNow: true,
