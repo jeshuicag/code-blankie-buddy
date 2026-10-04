@@ -168,16 +168,21 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
         ) : (
           <>
             <div className="flex items-center justify-center gap-3">
-              <IconButton label="Play recording" pulse={guideStage === "first-play" || guideStage === "second-play"} onClick={play} disabled={isProcessing}><Play /></IconButton>
+              <IconButton label={isPlaying ? "Pause recording" : "Play recording"} pulse={guideStage === "first-play" || guideStage === "second-play"} onClick={togglePlay} disabled={isProcessing}>{isPlaying ? <Pause /> : <Play />}</IconButton>
               <IconButton label="Record again" onClick={() => { clear(); void start(); }}><RotateCcw /></IconButton>
               <IconButton label="Delete recording" onClick={clear}><Trash2 /></IconButton>
             </div>
-            <div className="flex items-center justify-center gap-3 animate-fade-in" role="group" aria-label="Voice disguise">
-              {PRESETS.map((item) => {
-                const PresetIcon = item.icon;
-                return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
-              })}
+            <div className="h-1.5 w-48 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Playback progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
+              <div className="h-full rounded-full bg-primary transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
             </div>
+            {(guideStage === "disguise" || guideStage === "choose") && (
+              <div className="flex items-center justify-center gap-3 animate-fade-in" role="group" aria-label="Voice disguise">
+                {PRESETS.map((item) => {
+                  const PresetIcon = item.icon;
+                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+                })}
+              </div>
+            )}
           </>
         )}
         {isProcessing && <span className="h-2 w-2 animate-ping rounded-full bg-primary" aria-label="Changing voice" />}
