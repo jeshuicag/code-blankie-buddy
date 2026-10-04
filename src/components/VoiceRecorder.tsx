@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
+import { Mic, Pause, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -76,6 +76,8 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [preset, setPreset] = useState<VoicePreset>("normal");
@@ -86,8 +88,8 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    if (!recording) { setUrl(null); return; }
-    const nextUrl = URL.createObjectURL(recording); setUrl(nextUrl);
+    if (!recording) { setUrl(null); setProgress(0); return; }
+    const nextUrl = URL.createObjectURL(recording); setUrl(nextUrl); setProgress(0); setIsPlaying(false);
     return () => URL.revokeObjectURL(nextUrl);
   }, [recording]);
   useEffect(() => () => stop(), []);
@@ -133,9 +135,19 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   }
 
   function stop() { const rec = recorderRef.current; if (rec && rec.state !== "inactive") rec.stop(); recorderRef.current = null; }
-  function clear() { rawRef.current = null; onChange(null); setGuideStage("record"); setPreset("normal"); }
-  function play() {
-    void audioRef.current?.play();
+  function clear() { rawRef.current = null; onChange(null); setGuideStage("record"); setPreset("normal"); setProgress(0); setIsPlaying(false); }
+  function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play();
+    else audio.pause();
+  }
+  function handleTimeUpdate() {
+    const audio = audioRef.current;
+    if (audio && audio.duration > 0) setProgress(Math.min(1, audio.currentTime / audio.duration));
+  }
+  function handleEnded() {
+    setIsPlaying(false); setProgress(1);
     if (guideStage === "first-play") setGuideStage("disguise");
     else if (guideStage === "second-play") setGuideStage("choose");
   }
@@ -143,7 +155,7 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   return (
     <TooltipProvider delayDuration={250}>
       <div className="flex flex-col items-center gap-3 py-2">
-        <audio ref={audioRef} src={url ?? undefined} className="hidden" />
+        <audio ref={audioRef} src={url ?? undefined} className="hidden" onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onTimeUpdate={handleTimeUpdate} onEnded={handleEnded} />
         {isRecording ? (
           <div className="flex flex-col items-center gap-2">
             <IconButton label={`Stop recording, ${seconds} seconds remaining`} pulse onClick={stop} variant="destructive"><Square /></IconButton>
@@ -156,16 +168,21 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
         ) : (
           <>
             <div className="flex items-center justify-center gap-3">
-              <IconButton label="Play recording" pulse={guideStage === "first-play" || guideStage === "second-play"} onClick={play} disabled={isProcessing}><Play /></IconButton>
+              <IconButton label={isPlaying ? "Pause recording" : "Play recording"} pulse={guideStage === "first-play" || guideStage === "second-play"} onClick={togglePlay} disabled={isProcessing}>{isPlaying ? <Pause /> : <Play />}</IconButton>
               <IconButton label="Record again" onClick={() => { clear(); void start(); }}><RotateCcw /></IconButton>
               <IconButton label="Delete recording" onClick={clear}><Trash2 /></IconButton>
             </div>
-            <div className="flex items-center justify-center gap-3 animate-fade-in" role="group" aria-label="Voice disguise">
-              {PRESETS.map((item) => {
-                const PresetIcon = item.icon;
-                return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
-              })}
+            <div className="h-1.5 w-48 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Playback progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
+              <div className="h-full rounded-full bg-primary transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
             </div>
+            {(guideStage === "disguise" || guideStage === "choose") && (
+              <div className="flex items-center justify-center gap-3 animate-fade-in" role="group" aria-label="Voice disguise">
+                {PRESETS.map((item) => {
+                  const PresetIcon = item.icon;
+                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+                })}
+              </div>
+            )}
           </>
         )}
         {isProcessing && <span className="h-2 w-2 animate-ping rounded-full bg-primary" aria-label="Changing voice" />}
