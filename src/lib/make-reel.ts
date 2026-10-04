@@ -112,11 +112,11 @@ function loadVideo(source: Blob): Promise<{ el: HTMLVideoElement; url: string }>
 }
 
 // Grabs a JPEG still from an uploaded video (used as the post's cover picture and for produce detection).
-export async function videoThumbnail(source: Blob): Promise<File> {
+export async function videoThumbnail(source: Blob, atSeconds?: number): Promise<File> {
   const { el, url } = await loadVideo(source);
   await new Promise<void>((resolve) => {
     el.onseeked = () => resolve();
-    el.currentTime = Math.min(0.5, (el.duration || 1) / 2);
+    el.currentTime = atSeconds ?? Math.min(0.5, (el.duration || 1) / 2);
   });
   const scale = Math.min(1, 1080 / el.videoWidth);
   const canvas = document.createElement("canvas");
