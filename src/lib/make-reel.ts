@@ -129,15 +129,18 @@ export async function videoThumbnail(source: Blob): Promise<File> {
 }
 
 // Re-encodes an uploaded video as a 9:16 MP4 Reel. Uses `audio` as the soundtrack when given,
-// otherwise keeps the video's own sound.
+// otherwise keeps the video's own sound. trimStart/trimEnd (seconds) select which part to keep.
 export async function makeVideoReel(
   source: Blob,
   audio: Blob | null,
   onProgress?: (fraction: number) => void,
+  trimStart = 0,
+  trimEnd?: number,
 ): Promise<File> {
   const mime = pickMime();
   if (!mime) throw new Error("This browser can't make videos. Please use Safari or Chrome.");
   const { el, url } = await loadVideo(source);
+  const end = Math.min(trimEnd ?? Infinity, Number.isFinite(el.duration) ? el.duration : Infinity);
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
