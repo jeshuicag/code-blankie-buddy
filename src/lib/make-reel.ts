@@ -22,15 +22,32 @@ export function canMakeReel(): boolean {
 // MediaRecorder writes "streaming" MP4s with no total length, so players show them
 // as live broadcasts with a huge/unknown duration. Re-package (no re-encode) into a
 // normal MP4 that records its real length.
+async function hasRealLength(file: Blob): Promise<boolean> {
+  const el = document.createElement("video");
+  el.preload = "metadata"; el.muted = true;
+  const url = URL.createObjectURL(file); el.src = url;
+  try {
+    const d = await new Promise<number>((resolve) => { el.onloadedmetadata = () => resolve(el.duration); el.onerror = () => resolve(NaN); setTimeout(() => resolve(NaN), 5000); });
+    return Number.isFinite(d) && d > 0 && d <= MAX_REEL_SECONDS + 1;
+  } finally { URL.revokeObjectURL(url); }
+}
+
 async function finalizeMp4(blob: Blob): Promise<File> {
   try {
     const { Input, Output, Conversion, BlobSource, BufferTarget, Mp4OutputFormat, ALL_FORMATS } = await import("mediabunny");
     const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
     const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target: new BufferTarget() });
-    const conversion = await Conversion.init({ input, output, trim: { start: 0, end: MAX_REEL_SECONDS } });
+    // Some phones (Safari) stamp the first frame with a large clock time, which makes
+    // the file look hours long. Start the cut at the real first frame so it starts at 0.
+    const first = Math.max(0, (await input.getFirstTimestamp().catch(() => 0)) || 0);
+    const conversion = await Conversion.init({ input, output, trim: { start: first, end: first + MAX_REEL_SECONDS } });
+    if (!conversion.isValid) throw new Error(`Invalid conversion: ${conversion.discardedTracks.map((t) => t.reason).join(", ")}`);
     await conversion.execute();
     const buf = (output.target as InstanceType<typeof BufferTarget>).buffer;
-    if (buf && buf.byteLength > 0) return new File([buf], "reel.mp4", { type: "video/mp4" });
+    if (!buf || buf.byteLength === 0) throw new Error("Empty output");
+    const fixed = new File([buf], "reel.mp4", { type: "video/mp4" });
+    if (await hasRealLength(fixed)) return fixed;
+    throw new Error("Output still has no length");
   } catch (err) {
     console.warn("Couldn't re-package reel", err);
   }
