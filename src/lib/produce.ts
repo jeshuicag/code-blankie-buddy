@@ -1,5 +1,5 @@
 // Recognizes produce in a picture, entirely on the phone.
-// MobileNet (~2 MB) turns the picture into features; a small head retrained on
+// MobileNet (bundled in public/models/mobilenet) turns the picture into features; a small head retrained on
 // 36 fruits/vegetables (public/models/produce, ~180 KB) names the produce.
 import type { MobileNet } from "@tensorflow-models/mobilenet";
 import type { LayersModel } from "@tensorflow/tfjs";
@@ -24,7 +24,7 @@ function loadModel() {
       const mobilenet = await import("@tensorflow-models/mobilenet");
       const [base, head] = await Promise.all([
         // Bundled with the app (public/models/mobilenet) so the first open works offline.
-        mobilenet.load({ version: 2, alpha: 0.5, modelUrl: "/models/mobilenet/model.json" }),
+        mobilenet.load({ version: 2, alpha: 0.5, modelUrl: "/models/mobilenet/model.json", inputRange: [0, 1] }),
         tf.loadLayersModel("/models/produce/model.json"),
       ]);
       return { tf, base, head };

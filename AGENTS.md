@@ -9,4 +9,4 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
-- Produce recognition = MobileNet v2 (alpha 0.5) features + retrained head in public/models/produce; LABELS order in src/lib/produce.ts must match the training labels. Why: small, offline, covers everyday produce.
+- Produce recognition = MobileNet v2 (alpha 0.5) bundled in public/models/mobilenet (inputRange [0,1]) + retrained head in public/models/produce; LABELS order in src/lib/produce.ts must match training labels. Why: small, fully offline from first open.
