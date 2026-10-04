@@ -142,3 +142,16 @@
     color: var(--color-foreground);
   }
 }
+
+@keyframes guide-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 42%, transparent); }
+  50% { box-shadow: 0 0 0 0.7rem color-mix(in oklab, var(--primary) 0%, transparent); }
+}
+
+.guide-pulse {
+  animation: guide-pulse 1.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-pulse { animation: none; outline: 3px solid color-mix(in oklab, var(--primary) 35%, transparent); outline-offset: 4px; }
+}

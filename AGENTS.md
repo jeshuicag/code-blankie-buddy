@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Produce recognition = MobileNet v2 (alpha 0.5) bundled in public/models/mobilenet (inputRange [0,1]) + retrained head in public/models/produce; LABELS order in src/lib/produce.ts must match training labels. Why: small, fully offline from first open.
+- The posting experience is a single icon-guided state machine, with the voice sub-sequence reporting completion to the page. Why: only one next action should be visually prompted at a time.
