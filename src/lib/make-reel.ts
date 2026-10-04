@@ -62,7 +62,12 @@ export async function makeReel(
   draw();
 
   const audioCtx = new AudioContext();
-  const buffer = await audioCtx.decodeAudioData(await audio.arrayBuffer());
+  const fullBuffer = await audioCtx.decodeAudioData(await audio.arrayBuffer());
+  // Never let a photo Reel run past the cap, even if the recording is longer.
+  const maxLength = Math.ceil(MAX_REEL_SECONDS * fullBuffer.sampleRate);
+  const buffer = fullBuffer.length > maxLength
+    ? (() => { const cut = new AudioBuffer({ length: maxLength, numberOfChannels: 1, sampleRate: fullBuffer.sampleRate }); cut.copyToChannel(fullBuffer.getChannelData(0).subarray(0, maxLength), 0); return cut; })()
+    : fullBuffer;
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
   const dest = audioCtx.createMediaStreamDestination();
