@@ -179,19 +179,17 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
             <div className="h-1.5 w-48 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Playback progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
               <div className="h-full rounded-full bg-primary transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
             </div>
-            {(guideStage === "disguise" || guideStage === "choose") && (
-              <div className="flex flex-col items-center gap-3 animate-fade-in">
-                <div className="flex items-center justify-center gap-3" role="group" aria-label="Voice disguise">
-                  {PRESETS.map((item) => {
-                    const PresetIcon = item.icon;
-                    return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
-                  })}
-                </div>
-                {guideStage === "choose" && (
-                  <IconButton label={`Keep ${PRESETS.find((item) => item.id === preset)?.label ?? "this voice"} and continue`} pulse disabled={isProcessing} onClick={confirmPreset}><Check /></IconButton>
-                )}
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex items-center justify-center gap-3" role="group" aria-label="Voice disguise">
+                {PRESETS.map((item) => {
+                  const PresetIcon = item.icon;
+                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+                })}
               </div>
-            )}
+              {guideStage === "choose" && (
+                <IconButton label={`Keep ${PRESETS.find((item) => item.id === preset)?.label ?? "this voice"} and continue`} pulse disabled={isProcessing} onClick={confirmPreset}><Check /></IconButton>
+              )}
+            </div>
           </>
         )}
         {isProcessing && <span className="h-2 w-2 animate-ping rounded-full bg-primary" aria-label="Changing voice" />}

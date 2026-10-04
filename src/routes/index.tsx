@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Send,
   Upload,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -135,7 +136,7 @@ function Index() {
 
   async function useLocation() {
     setLocating(true); setGpsCountdown(45);
-    try { const { findNearestCity } = await import("@/lib/nearest-city"); setLocation(await findNearestCity(setGpsCountdown)); setStep("phone"); }
+    try { const { findNearestCity } = await import("@/lib/nearest-city"); setLocation(await findNearestCity(setGpsCountdown)); }
     catch (error) { setErrorMessage(error instanceof Error ? error.message : "Could not get location"); setStatus("error"); }
     finally { setLocating(false); setGpsCountdown(null); }
   }
@@ -172,15 +173,19 @@ function Index() {
           )}
 
           {step === "phone" && (
-            <div className="flex w-full items-center gap-3 animate-fade-in">
-              <label className="guide-pulse flex h-16 flex-1 items-center rounded-md border border-primary bg-background px-4"><Phone className="mr-3 h-6 w-6 text-primary" /><input ref={phoneInputRef} type="tel" inputMode="tel" autoFocus value={phone} onChange={(event) => setPhone(event.target.value.slice(0, 20))} maxLength={20} aria-label="Phone number" className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label>
-              <ActionButton label="Continue" variant="outline" onClick={() => setStep("send")}><ChevronRight /></ActionButton>
+            <div className="flex w-full flex-col items-center gap-4 animate-fade-in">
+              <div className="flex w-full items-center gap-3">
+                <label className="guide-pulse flex h-16 flex-1 items-center rounded-md border border-primary bg-background px-4"><Phone className="mr-3 h-6 w-6 text-primary" /><input ref={phoneInputRef} type="tel" inputMode="tel" autoFocus value={phone} onChange={(event) => setPhone(event.target.value.slice(0, 20))} maxLength={20} aria-label="Phone number" className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label>
+                <ActionButton label="Continue" variant="outline" onClick={() => setStep("send")}><ChevronRight /></ActionButton>
+              </div>
+              <ActionButton label="Skip phone number" variant="ghost" onClick={() => { setPhone(""); setStep("send"); }}><Phone /><X /></ActionButton>
             </div>
           )}
 
           {step === "send" && (
             <div className="flex w-full flex-col items-center gap-4 animate-fade-in">
               {reelUrl ? <video src={reelUrl} controls playsInline className="max-h-96 w-full rounded-md border border-border bg-foreground" /> : previewUrl && <img src={previewUrl} alt="Ready to send" className="max-h-72 w-full rounded-md border border-border object-contain" />}
+              <textarea value={caption} onChange={(event) => setCaption(event.target.value.slice(0, 2000))} maxLength={2000} rows={3} aria-label="Post caption" className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary" />
               <div className="flex items-center gap-3">
                 <ActionButton label="Start over with another picture" variant="outline" onClick={resetPhoto}><RotateCcw /></ActionButton>
                 <ActionButton label={voice && !reelFile ? "Create Reel preview" : reelFile ? "Send Reel" : "Send picture"} pulse disabled={!file || !userId || status === "uploading"} onClick={() => void sendPicture()}>
