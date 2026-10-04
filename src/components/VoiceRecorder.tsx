@@ -105,6 +105,7 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
     setPreset(next); setError(null);
     if (rawRef.current) void applyPreset(rawRef.current, next);
     if (guideStage === "disguise") setGuideStage("second-play");
+    if (guideStage === "choose") onGuideComplete?.();
   }
 
   async function start() {
@@ -131,7 +132,7 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   function play() {
     void audioRef.current?.play();
     if (guideStage === "first-play") setGuideStage("disguise");
-    else if (guideStage === "second-play") { setGuideStage("choose"); onGuideComplete?.(); }
+    else if (guideStage === "second-play") setGuideStage("choose");
   }
 
   return (
@@ -155,7 +156,7 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
                   const PresetIcon = item.icon;
                   const visible = guideStage === "choose" || item.id === "deep";
                   if (!visible) return null;
-                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={(guideStage === "disguise" && item.id === "deep") || guideStage === "choose"} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
                 })}
               </div>
             )}

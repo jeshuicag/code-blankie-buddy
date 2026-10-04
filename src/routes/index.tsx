@@ -238,7 +238,7 @@ function Index() {
                   {voice && !reelFile ? <Film /> : reelFile ? <Send /> : <Upload />}
                 </ActionButton>
               </div>
-              {progress !== null && <div className="h-2 w-full overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} /></div>}
+              {progress !== null && <progress className="h-2 w-full accent-primary" max={1} value={progress} aria-label="Creating Reel" />}
             </div>
           )}
 
