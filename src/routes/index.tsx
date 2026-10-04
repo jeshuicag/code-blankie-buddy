@@ -160,13 +160,20 @@ function Index() {
     setTimeout(() => URL.revokeObjectURL(href), 60_000);
   }
 
-  // Keeps a trimmed preview inside the chosen 10 seconds: jumps back when
-  // scrubbed before the clip, and pauses at its end.
-  function clampTrimmedPlayback(event: React.SyntheticEvent<HTMLVideoElement>) {
-    if (trimEnd === null) return;
-    const video = event.currentTarget;
-    if (video.currentTime < trimStart - 0.25) video.currentTime = trimStart;
-    else if (video.currentTime >= trimEnd) { video.pause(); video.currentTime = trimEnd; }
+  // Cuts the uploaded video down to the chosen 10 seconds: builds a new video
+  // containing only that clip, and uses it for the preview and every later step.
+  async function cutVideo(start: number) {
+    if (!sourceVideo) return;
+    setProgress(0); setErrorMessage(null);
+    try {
+      const cut = await makeVideoReel(sourceVideo, null, setProgress, start, start + MAX_VIDEO_SECONDS);
+      if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl);
+      setSourceVideo(cut); setSourceVideoUrl(URL.createObjectURL(cut));
+      setTrimStart(0); setTrimEnd(null); setTrimming(false);
+      const cover = await videoThumbnail(cut, MAX_VIDEO_SECONDS / 2);
+      setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
+    } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't cut this video."); setStatus("error"); }
+    finally { setProgress(null); }
   }
 
   function resetPhoto() {
