@@ -88,8 +88,8 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    if (!recording) { setUrl(null); return; }
-    const nextUrl = URL.createObjectURL(recording); setUrl(nextUrl);
+    if (!recording) { setUrl(null); setProgress(0); return; }
+    const nextUrl = URL.createObjectURL(recording); setUrl(nextUrl); setProgress(0); setIsPlaying(false);
     return () => URL.revokeObjectURL(nextUrl);
   }, [recording]);
   useEffect(() => () => stop(), []);
@@ -136,8 +136,18 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
 
   function stop() { const rec = recorderRef.current; if (rec && rec.state !== "inactive") rec.stop(); recorderRef.current = null; }
   function clear() { rawRef.current = null; onChange(null); setGuideStage("record"); setPreset("normal"); }
-  function play() {
-    void audioRef.current?.play();
+  function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play();
+    else audio.pause();
+  }
+  function handleTimeUpdate() {
+    const audio = audioRef.current;
+    if (audio && audio.duration > 0) setProgress(Math.min(1, audio.currentTime / audio.duration));
+  }
+  function handleEnded() {
+    setIsPlaying(false); setProgress(1);
     if (guideStage === "first-play") setGuideStage("disguise");
     else if (guideStage === "second-play") setGuideStage("choose");
   }
