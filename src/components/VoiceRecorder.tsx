@@ -125,7 +125,7 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource
   }
 
   function confirmPreset() {
-    if (isProcessing) return;
+    if (isProcessing || busy) return;
     if (guideStage === "choose") onGuideComplete?.();
   }
 
@@ -195,9 +195,9 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource
         ) : (
           <>
             <div className="flex items-center justify-center gap-3">
-              <IconButton label={isPlaying ? "Pause recording" : "Play recording"} pulse={guideStage === "first-play" || guideStage === "second-play"} onClick={togglePlay} disabled={isProcessing}>{isPlaying ? <Pause /> : <Play />}</IconButton>
-              <IconButton label="Record again" onClick={() => { clear(); void start(); }}><RotateCcw /></IconButton>
-              <IconButton label="Delete recording" onClick={clear}><Trash2 /></IconButton>
+              <IconButton label={isPlaying ? "Pause recording" : "Play recording"} pulse={(guideStage === "first-play" || guideStage === "second-play") && !busy} onClick={togglePlay} disabled={isProcessing || busy}>{isPlaying ? <Pause /> : <Play />}</IconButton>
+              <IconButton label="Record again" onClick={() => { clear(); void start(); }} disabled={busy}><RotateCcw /></IconButton>
+              <IconButton label="Delete recording" onClick={clear} disabled={busy}><Trash2 /></IconButton>
             </div>
             <div className="h-1.5 w-48 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Playback progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
               <div className="h-full rounded-full bg-primary transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
