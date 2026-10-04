@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
+import { Mic, Pause, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -76,6 +76,8 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [preset, setPreset] = useState<VoicePreset>("normal");
