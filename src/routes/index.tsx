@@ -50,6 +50,8 @@ function Index() {
   const [progress, setProgress] = useState<number | null>(null);
   const [reelFile, setReelFile] = useState<File | null>(null);
   const [reelUrl, setReelUrl] = useState<string | null>(null);
+  const [location, setLocation] = useState("");
+  const [phone, setPhone] = useState("");
 
   // Give each device a permanent random ID the first time the app opens.
   useEffect(() => {
@@ -146,6 +148,8 @@ function Index() {
       const formData = new FormData();
       formData.append("picture", file);
       formData.append("userId", userId);
+      if (location.trim()) formData.append("location", location.trim());
+      if (phone.trim()) formData.append("phone", phone.trim());
       if (reelFile) {
         formData.append("video", reelFile);
       }
@@ -329,6 +333,33 @@ function Index() {
             </button>
           </div>
         )}
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <label className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2.5">
+            <span aria-hidden="true">📍</span>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value.slice(0, 100))}
+              placeholder="Location (optional)"
+              aria-label="Location (optional)"
+              maxLength={100}
+              className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+          </label>
+          <label className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2.5">
+            <span aria-hidden="true">📞</span>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.slice(0, 20))}
+              placeholder="Phone (optional)"
+              aria-label="Phone number (optional)"
+              maxLength={20}
+              className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+          </label>
+        </div>
 
         <button
           type="button"
