@@ -86,7 +86,7 @@ function IconButton({ label, pulse = false, active = false, children, ...props }
   );
 }
 
-export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource, maxSeconds }: { maxSeconds?: number; recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null }) {
+export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource, maxSeconds }: { maxSeconds?: number | undefined; recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null }) {
   const limit = maxSeconds ?? MAX_SECONDS;
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
