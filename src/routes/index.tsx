@@ -195,7 +195,10 @@ function Index() {
           )}
 
           {step === "photo" && trimming && sourceVideoUrl && (
-            <VideoTrimmer src={sourceVideoUrl} onCancel={resetPhoto} onDone={(start) => { setTrimStart(start); setTrimEnd(start + MAX_VIDEO_SECONDS); setTrimming(false); void videoThumbnail(sourceVideo!, start + MAX_VIDEO_SECONDS / 2).then((cover) => { setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice"); }).catch(() => setStep("voice")); }} />
+            <div className="flex w-full flex-col items-center gap-3">
+              <VideoTrimmer src={sourceVideoUrl} onCancel={resetPhoto} onDone={(start) => void cutVideo(start)} />
+              {progress !== null && <progress className="h-2 w-full accent-primary" max={1} value={progress} aria-label="Cutting video" />}
+            </div>
           )}
 
           {step === "photo" && cropping && previewUrl && (
