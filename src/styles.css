@@ -144,8 +144,8 @@
 }
 
 @keyframes guide-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 42%, transparent); transform: scale(1); }
-  50% { box-shadow: 0 0 0 0.7rem color-mix(in oklab, var(--primary) 0%, transparent); transform: scale(1.06); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 42%, transparent); }
+  50% { box-shadow: 0 0 0 0.7rem color-mix(in oklab, var(--primary) 0%, transparent); }
 }
 
 .guide-pulse {
