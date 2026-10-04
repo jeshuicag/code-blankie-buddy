@@ -94,8 +94,6 @@ function Index() {
   const [sourceVideo, setSourceVideo] = useState<File | null>(null);
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
   const [trimming, setTrimming] = useState(false);
-  const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState<number | null>(null);
 
   useEffect(() => { preloadProduceModel(); void import("@/lib/nearest-city").then((module) => module.preloadCities()); }, []);
   useEffect(() => {
@@ -143,7 +141,7 @@ function Index() {
     setStatus("uploading"); setErrorMessage(null);
     try {
       if ((voice || sourceVideo) && !reelFile) {
-        setProgress(0); const reel = sourceVideo ? await makeVideoReel(sourceVideo, voice, setProgress, trimStart, trimStart + MAX_VIDEO_SECONDS) : await makeReel(file, voice!, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
+        setProgress(0); const reel = sourceVideo ? await makeVideoReel(sourceVideo, voice, setProgress) : await makeReel(file, voice!, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
       }
       const formData = new FormData(); formData.append("picture", file); formData.append("userId", userId);
       if (location.trim()) formData.append("location", location.trim()); if (phone.trim()) formData.append("phone", phone.trim()); if (caption.trim()) formData.append("caption", caption.trim()); if (reelFile) formData.append("video", reelFile);
