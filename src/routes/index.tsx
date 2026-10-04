@@ -155,6 +155,7 @@ function Index() {
       return;
     }
     localStorage.setItem("photoUserId", match[0]);
+    localStorage.setItem("photoKeySaved", match[0]);
     setUserId(match[0]);
     setStatus("idle");
     setErrorMessage(null);
