@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Check,
+  Download,
   ChevronRight,
   Film,
   Image as ImageIcon,
@@ -18,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { buildCaption, detectProduce, preloadProduceModel } from "@/lib/produce";
 import { PhotoCropper } from "@/components/PhotoCropper";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
-import { makeReel } from "@/lib/make-reel";
+import { makeReel, makeVideoReel, videoThumbnail } from "@/lib/make-reel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -89,6 +90,8 @@ function Index() {
   const [produce, setProduce] = useState<string[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [caption, setCaption] = useState("");
+  const [sourceVideo, setSourceVideo] = useState<File | null>(null);
+  const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
 
   useEffect(() => { preloadProduceModel(); void import("@/lib/nearest-city").then((module) => module.preloadCities()); }, []);
   useEffect(() => {
@@ -104,8 +107,17 @@ function Index() {
     setUserId(id);
   }, []);
 
-  function pickFile(selected: File | null) {
+  async function pickFile(selected: File | null) {
     if (!selected) return;
+    if (selected.type.startsWith("video/")) {
+      resetPhoto();
+      try {
+        const cover = await videoThumbnail(selected);
+        setSourceVideo(selected); setSourceVideoUrl(URL.createObjectURL(selected));
+        setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
+      } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't read this video."); setStatus("error"); }
+      return;
+    }
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl);
     if (originalUrl) URL.revokeObjectURL(originalUrl);
     const url = URL.createObjectURL(selected); setFile(selected); setOriginalUrl(url); setPreviewUrl(url); setCropping(true); setStatus("idle"); setResult(null); setErrorMessage(null);
@@ -117,18 +129,26 @@ function Index() {
     if (!file || !userId || cropping || status === "uploading") return;
     setStatus("uploading"); setErrorMessage(null);
     try {
-      if (voice && !reelFile) {
-        setProgress(0); const reel = await makeReel(file, voice, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
+      if ((voice || sourceVideo) && !reelFile) {
+        setProgress(0); const reel = sourceVideo ? await makeVideoReel(sourceVideo, voice, setProgress) : await makeReel(file, voice!, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
       }
       const formData = new FormData(); formData.append("picture", file); formData.append("userId", userId);
       if (location.trim()) formData.append("location", location.trim()); if (phone.trim()) formData.append("phone", phone.trim()); if (caption.trim()) formData.append("caption", caption.trim()); if (reelFile) formData.append("video", reelFile);
       const response = await fetch("/api/public/upload", { method: "POST", body: formData });
       if (!response.ok) throw new Error((await response.text()) || `Upload failed (${response.status})`);
       setResult((await response.json()) as UploadResult); setStatus("success");
-    } catch (error) { setProgress(null); setErrorMessage(error instanceof Error ? error.message : "Upload failed"); setStatus("error"); }
+    } catch (error) { setProgress(null); if (reelFile) saveVideo(reelFile); setErrorMessage(error instanceof Error ? error.message : "Upload failed"); setStatus("error"); }
+  }
+
+  function saveVideo(video: File) {
+    const link = document.createElement("a"); const href = URL.createObjectURL(video);
+    link.href = href; link.download = `reel-${new Date().toISOString().replace(/[:.]/g, "-")}.mp4`;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 60_000);
   }
 
   function resetPhoto() {
+    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null);
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl); if (originalUrl) URL.revokeObjectURL(originalUrl); clearReel();
     setFile(null); setPreviewUrl(null); setOriginalUrl(null); setCropping(false); setVoice(null); setStatus("idle"); setResult(null); setErrorMessage(null); setStep("photo");
     if (libraryInputRef.current) libraryInputRef.current.value = "";
@@ -146,10 +166,10 @@ function Index() {
       <main className="min-h-screen bg-background px-4 py-8">
         <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md flex-col items-center justify-center">
           <StepPath current={step} />
-          <input ref={libraryInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => pickFile(event.target.files?.[0] ?? null)} />
+          <input ref={libraryInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(event) => void pickFile(event.target.files?.[0] ?? null)} />
 
           {step === "photo" && !cropping && (
-            <ActionButton label="Upload a picture" pulse onClick={() => libraryInputRef.current?.click()}><Upload /><ImageIcon /></ActionButton>
+            <ActionButton label="Upload a picture or video" pulse onClick={() => libraryInputRef.current?.click()}><Upload /><ImageIcon /></ActionButton>
           )}
 
           {step === "photo" && cropping && previewUrl && (
@@ -158,9 +178,9 @@ function Index() {
 
           {step === "voice" && (
             <div className="flex flex-col items-center gap-3 animate-fade-in">
-              {previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
-              <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} />
-              {!voice && <ActionButton label="Continue without voice" variant="ghost" onClick={() => setStep("location")}><ChevronRight /></ActionButton>}
+              {sourceVideoUrl ? <video src={sourceVideoUrl} controls playsInline className="max-h-52 w-full rounded-md border border-border bg-foreground" /> : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
+              <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} skipSource={sourceVideo} />
+              {!voice && !sourceVideo && <ActionButton label="Continue without voice" variant="ghost" onClick={() => setStep("location")}><ChevronRight /></ActionButton>}
             </div>
           )}
 
@@ -188,8 +208,8 @@ function Index() {
               <textarea value={caption} onChange={(event) => setCaption(event.target.value.slice(0, 2000))} maxLength={2000} rows={3} aria-label="Post caption" className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary" />
               <div className="flex items-center gap-3">
                 <ActionButton label="Start over with another picture" variant="outline" onClick={resetPhoto}><RotateCcw /></ActionButton>
-                <ActionButton label={voice && !reelFile ? "Create Reel preview" : reelFile ? "Send Reel" : "Send picture"} pulse disabled={!file || !userId || status === "uploading"} onClick={() => void sendPicture()}>
-                  {voice && !reelFile ? <Film /> : reelFile ? <Send /> : <Upload />}
+                <ActionButton label={(voice || sourceVideo) && !reelFile ? "Create Reel preview" : reelFile ? "Send Reel" : "Send picture"} pulse disabled={!file || !userId || status === "uploading"} onClick={() => void sendPicture()}>
+                  {(voice || sourceVideo) && !reelFile ? <Film /> : reelFile ? <Send /> : <Upload />}
                 </ActionButton>
               </div>
               {progress !== null && <progress className="h-2 w-full accent-primary" max={1} value={progress} aria-label="Creating Reel" />}
@@ -199,6 +219,7 @@ function Index() {
           {detecting && <span className="mt-5 h-2 w-2 animate-ping rounded-full bg-primary" aria-label="Recognizing produce" />}
           {status === "success" && result && <div className="mt-5 flex flex-col items-center gap-3 text-center text-sm text-foreground"><Check className="h-10 w-10 text-primary" /><span>{result.filename}</span></div>}
           {status === "error" && <p className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-center text-sm text-destructive">{errorMessage ?? "Something went wrong. Please try again."}</p>}
+          {status === "error" && reelFile && <div className="mt-3"><ActionButton label="Save the Reel to your files" variant="outline" onClick={() => saveVideo(reelFile)}><Download /><Film /></ActionButton></div>}
         </div>
       </main>
     </TooltipProvider>
