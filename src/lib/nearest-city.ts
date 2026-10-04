@@ -42,24 +42,52 @@ const GPS_TIMEOUT_MS = 45000;
 
 // Goes straight to the GPS chip (works with Wi-Fi/data off). onTick is called
 // each second with the remaining seconds so the UI can show a countdown.
+// Uses watchPosition and keeps listening through "position unavailable" hiccups
+// (phones report these instantly while the GPS chip is still warming up with
+// Wi-Fi off). Only a real permission block stops it early.
 function getPosition(onTick?: (secondsLeft: number) => void): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("Location not supported on this device"));
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return reject(new Error("Location only works on a secure (https) page"));
+    }
     let secondsLeft = Math.ceil(GPS_TIMEOUT_MS / 1000);
+    let watchId: number | null = null;
+    let done = false;
+    const finish = () => {
+      done = true;
+      clearInterval(timer);
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    };
     onTick?.(secondsLeft);
     const timer = setInterval(() => {
       secondsLeft -= 1;
       onTick?.(Math.max(secondsLeft, 0));
-      if (secondsLeft <= 0) clearInterval(timer);
+      if (secondsLeft <= 0 && !done) {
+        finish();
+        reject(new Error("Couldn't get a GPS fix in 45 seconds. Try outdoors with a clear view of the sky."));
+      }
     }, 1000);
-    navigator.geolocation.getCurrentPosition(
+    watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        clearInterval(timer);
+        if (done) return;
+        finish();
         resolve(pos);
       },
-      () => {
-        clearInterval(timer);
-        reject(new Error("Location permission denied or unavailable"));
+      (err) => {
+        if (done) return;
+        if (err.code === err.PERMISSION_DENIED) {
+          finish();
+          const inFrame = typeof window !== "undefined" && window.self !== window.top;
+          reject(
+            new Error(
+              inFrame
+                ? "Location is blocked inside this preview window. Open the app in its own tab or the installed app."
+                : "Location permission is blocked. Turn on Location for this browser/app in your phone settings, then allow it for this site.",
+            ),
+          );
+        }
+        // POSITION_UNAVAILABLE / TIMEOUT: keep waiting until our own countdown ends.
       },
       {
         enableHighAccuracy: true,
