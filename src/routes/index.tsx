@@ -111,7 +111,6 @@ function Index() {
   }, []);
 
   async function pickFile(selected: File | null) {
-    console.log("[dbg] pickFile", selected?.type);
     if (!selected) return;
     if (selected.type.startsWith("video/")) {
       resetPhoto();
@@ -123,9 +122,8 @@ function Index() {
           probe.onloadedmetadata = () => resolve(probe.duration);
           probe.onerror = () => reject(new Error("Couldn't read this video. Try an MP4 or MOV file."));
         });
-        console.log("[dbg] duration", duration);
         setSourceVideo(selected); setSourceVideoUrl(url);
-        if (duration > MAX_VIDEO_SECONDS + 0.5) { console.log("[dbg] trimming"); setTrimming(true); return; }
+        if (duration > MAX_VIDEO_SECONDS + 0.5) { setTrimming(true); return; }
         const cover = await videoThumbnail(selected);
         setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
       } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't read this video."); setStatus("error"); }
