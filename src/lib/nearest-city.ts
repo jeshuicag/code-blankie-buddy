@@ -38,19 +38,40 @@ function loadCities() {
   return cache;
 }
 
-function getPosition(): Promise<GeolocationPosition> {
+const GPS_TIMEOUT_MS = 45000;
+
+// Goes straight to the GPS chip (works with Wi-Fi/data off). onTick is called
+// each second with the remaining seconds so the UI can show a countdown.
+function getPosition(onTick?: (secondsLeft: number) => void): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("Location not supported on this device"));
-    navigator.geolocation.getCurrentPosition(resolve, () => reject(new Error("Location permission denied or unavailable")), {
-      enableHighAccuracy: false,
-      timeout: 15000,
-      maximumAge: 600000,
-    });
+    let secondsLeft = Math.ceil(GPS_TIMEOUT_MS / 1000);
+    onTick?.(secondsLeft);
+    const timer = setInterval(() => {
+      secondsLeft -= 1;
+      onTick?.(Math.max(secondsLeft, 0));
+      if (secondsLeft <= 0) clearInterval(timer);
+    }, 1000);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        clearInterval(timer);
+        resolve(pos);
+      },
+      () => {
+        clearInterval(timer);
+        reject(new Error("Location permission denied or unavailable"));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: GPS_TIMEOUT_MS,
+        maximumAge: 600000,
+      },
+    );
   });
 }
 
-export async function findNearestCity(): Promise<string> {
-  const [pos, cities] = await Promise.all([getPosition(), loadCities()]);
+export async function findNearestCity(onTick?: (secondsLeft: number) => void): Promise<string> {
+  const [pos, cities] = await Promise.all([getPosition(onTick), loadCities()]);
   const lat = pos.coords.latitude;
   const lon = pos.coords.longitude;
   const cosLat = Math.cos((lat * Math.PI) / 180);
