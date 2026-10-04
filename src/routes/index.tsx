@@ -94,6 +94,18 @@ function Index() {
   const [sourceVideo, setSourceVideo] = useState<File | null>(null);
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
   const [trimming, setTrimming] = useState(false);
+  const [videoSeconds, setVideoSeconds] = useState<number | null>(null);
+  const [building, setBuilding] = useState(false);
+  const needsReel = !!file && !!(voice || sourceVideo) && step !== "photo" && (step !== "voice" || (!!sourceVideo && !!voice));
+  useEffect(() => {
+    if (!needsReel || reelFile || !file) return;
+    let cancelled = false; setBuilding(true); setProgress(0);
+    const job = sourceVideo ? makeVideoReel(sourceVideo, voice, (p) => !cancelled && setProgress(p)) : makeReel(file, voice!, (p) => !cancelled && setProgress(p));
+    job.then((reel) => { if (!cancelled) { setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); } })
+      .catch((error) => { if (!cancelled) { setErrorMessage(error instanceof Error ? error.message : "Couldn't make the Reel."); setStatus("error"); } })
+      .finally(() => { if (!cancelled) { setBuilding(false); setProgress(null); } });
+    return () => { cancelled = true; setBuilding(false); setProgress(null); };
+  }, [needsReel, reelFile, file, voice, sourceVideo]);
 
   useEffect(() => { preloadProduceModel(); void import("@/lib/nearest-city").then((module) => module.preloadCities()); }, []);
   useEffect(() => {
@@ -139,9 +151,7 @@ function Index() {
     if (!file || !userId || cropping || status === "uploading") return;
     setStatus("uploading"); setErrorMessage(null);
     try {
-      if ((voice || sourceVideo) && !reelFile) {
-        setProgress(0); const reel = sourceVideo ? await makeVideoReel(sourceVideo, voice, setProgress) : await makeReel(file, voice!, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
-      }
+      if ((voice || sourceVideo) && !reelFile) { setStatus("idle"); return; }
       const formData = new FormData(); formData.append("picture", file); formData.append("userId", userId);
       if (location.trim()) formData.append("location", location.trim()); if (phone.trim()) formData.append("phone", phone.trim()); if (caption.trim()) formData.append("caption", caption.trim()); if (reelFile) formData.append("video", reelFile);
       const response = await fetch("/api/public/upload", { method: "POST", body: formData });
@@ -174,7 +184,7 @@ function Index() {
   }
 
   function resetPhoto() {
-    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false);
+    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false); setVideoSeconds(null);
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl); if (originalUrl) URL.revokeObjectURL(originalUrl); clearReel();
     setFile(null); setPreviewUrl(null); setOriginalUrl(null); setCropping(false); setVoice(null); setStatus("idle"); setResult(null); setErrorMessage(null); setStep("photo");
     if (libraryInputRef.current) libraryInputRef.current.value = "";
@@ -212,16 +222,18 @@ function Index() {
           {step === "voice" && (
             <div className="flex flex-col items-center gap-3 animate-fade-in">
               {sourceVideoUrl ? (
-                <video src={sourceVideoUrl} controls playsInline className="max-h-52 w-full rounded-md border border-border bg-foreground" />
+                <video src={reelUrl ?? sourceVideoUrl} controls playsInline onLoadedMetadata={(e) => { if (!reelUrl && Number.isFinite(e.currentTarget.duration)) setVideoSeconds(e.currentTarget.duration); }} className="max-h-52 w-full rounded-md border border-border bg-foreground" />
               ) : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
-              <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} skipSource={sourceVideo} />
+              <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} skipSource={sourceVideo} maxSeconds={sourceVideo ? Math.max(1, Math.ceil(videoSeconds ?? MAX_VIDEO_SECONDS)) : undefined} />
+              {building && step === "voice" && progress !== null && <progress className="h-2 w-full accent-primary" max={1} value={progress} aria-label="Adding your voice to the video" />}
               {!voice && !sourceVideo && <ActionButton label="Continue without voice" variant="ghost" onClick={() => setStep("location")}><ChevronRight /></ActionButton>}
             </div>
           )}
 
           {step === "location" && (
             <div className="flex w-full items-center gap-3 animate-fade-in">
-              <ActionButton label="Use current location" pulse onClick={() => void useLocation()} disabled={locating}><MapPin />{locating && gpsCountdown !== null && <span className="absolute text-[10px] font-bold">{gpsCountdown}</span>}</ActionButton>
+              <ActionButton label="Use current location" pulse onClick={() => void useLocation()} disabled={locating}><MapPin /></ActionButton>
+              {locating && gpsCountdown !== null && <span className="text-4xl font-bold tabular-nums text-foreground" aria-live="polite">{gpsCountdown}</span>}
               <label className="flex h-14 flex-1 items-center rounded-md border border-input bg-background px-3"><MapPin className="mr-2 h-5 w-5 text-muted-foreground" /><input value={location} onChange={(event) => setLocation(event.target.value.slice(0, 100))} maxLength={100} aria-label="Location" className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label>
               <ActionButton label="Continue" variant="outline" onClick={() => setStep("phone")}><ChevronRight /></ActionButton>
             </div>
@@ -243,8 +255,8 @@ function Index() {
               <textarea value={caption} onChange={(event) => setCaption(event.target.value.slice(0, 2000))} maxLength={2000} rows={3} aria-label="Post caption" className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary" />
               <div className="flex items-center gap-3">
                 <ActionButton label="Start over with another picture" variant="outline" onClick={resetPhoto}><RotateCcw /></ActionButton>
-                <ActionButton label={(voice || sourceVideo) && !reelFile ? "Create Reel preview" : reelFile ? "Send Reel" : "Send picture"} pulse disabled={!file || !userId || status === "uploading"} onClick={() => void sendPicture()}>
-                  {(voice || sourceVideo) && !reelFile ? <Film /> : reelFile ? <Send /> : <Upload />}
+                <ActionButton label={reelFile ? "Send Reel" : "Send picture"} pulse={!building} disabled={!file || !userId || status === "uploading" || building || ((!!voice || !!sourceVideo) && !reelFile)} onClick={() => void sendPicture()}>
+                  {reelFile ? <Send /> : building ? <Film /> : <Upload />}
                 </ActionButton>
               </div>
               {progress !== null && <progress className="h-2 w-full accent-primary" max={1} value={progress} aria-label="Creating Reel" />}

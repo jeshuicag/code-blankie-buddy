@@ -47,6 +47,20 @@ async function pitchShift(raw: Blob, ratio: number): Promise<Blob> {
   return audioBufferToWav(await offline.startRendering());
 }
 
+// Extends a recording with silence so it lasts as long as the video.
+async function padWithSilence(raw: Blob, seconds: number): Promise<Blob> {
+  try {
+    const ctx = new AudioContext();
+    const buffer = await ctx.decodeAudioData(await raw.arrayBuffer());
+    await ctx.close();
+    const length = Math.max(buffer.length, Math.ceil(seconds * buffer.sampleRate));
+    if (length === buffer.length) return raw;
+    const padded = new AudioBuffer({ length, numberOfChannels: 1, sampleRate: buffer.sampleRate });
+    padded.copyToChannel(buffer.getChannelData(0), 0);
+    return audioBufferToWav(padded);
+  } catch { return raw; }
+}
+
 function audioBufferToWav(buffer: AudioBuffer): Blob {
   const data = buffer.getChannelData(0);
   const bytes = new DataView(new ArrayBuffer(44 + data.length * 2));
@@ -72,7 +86,8 @@ function IconButton({ label, pulse = false, active = false, children, ...props }
   );
 }
 
-export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource }: { recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null }) {
+export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource, maxSeconds }: { maxSeconds?: number | undefined; recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null }) {
+  const limit = maxSeconds ?? MAX_SECONDS;
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -124,14 +139,14 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource
         stream.getTracks().forEach((track) => track.stop());
         if (timerRef.current) clearInterval(timerRef.current);
         setIsRecording(false);
-        if ((Date.now() - startedAt) / 1000 < MIN_SECONDS) { setError(`Recordings must be at least ${MIN_SECONDS} seconds long.`); return; }
-        const raw = new Blob(chunks, { type: rec.mimeType || "audio/webm" }); rawRef.current = raw;
-        void applyPreset(raw, preset); setGuideStage("first-play");
+        if (!maxSeconds && (Date.now() - startedAt) / 1000 < MIN_SECONDS) { setError(`Recordings must be at least ${MIN_SECONDS} seconds long.`); return; }
+        const recorded = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+        void (maxSeconds ? padWithSilence(recorded, maxSeconds) : Promise.resolve(recorded)).then((raw) => { rawRef.current = raw; void applyPreset(raw, preset); }); setGuideStage("first-play");
       };
-      recorderRef.current = rec; rec.start(); setSeconds(MAX_SECONDS); setIsRecording(true);
+      recorderRef.current = rec; rec.start(); setSeconds(limit); setIsRecording(true);
       timerRef.current = window.setInterval(() => {
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-        const remaining = Math.max(0, MAX_SECONDS - elapsed);
+        const remaining = Math.max(0, limit - elapsed);
         setSeconds(remaining);
         if (remaining === 0) stop();
       }, 250);
