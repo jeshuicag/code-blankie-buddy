@@ -171,6 +171,7 @@ function Index() {
   function reset() {
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl);
     if (originalUrl) URL.revokeObjectURL(originalUrl);
+    clearReel();
     setFile(null);
     setPreviewUrl(null);
     setOriginalUrl(null);
@@ -300,7 +301,34 @@ function Index() {
           </button>
         </div>
 
-        <VoiceRecorder recording={voice} onChange={setVoice} />
+        <VoiceRecorder
+          recording={voice}
+          onChange={(v) => {
+            clearReel();
+            setVoice(v);
+          }}
+        />
+
+        {reelUrl && (
+          <div className="mt-4">
+            <p className="mb-1 text-sm font-medium text-foreground">
+              Your Reel — watch it before sending
+            </p>
+            <video
+              src={reelUrl}
+              controls
+              playsInline
+              className="max-h-96 w-full rounded-xl border border-border bg-black"
+            />
+            <button
+              type="button"
+              onClick={clearReel}
+              className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Discard Reel
+            </button>
+          </div>
+        )}
 
         <button
           type="button"
@@ -312,9 +340,11 @@ function Index() {
             ? `Making Reel… ${Math.round(progress * 100)}%`
             : status === "uploading"
               ? "Sending…"
-              : voice
-                ? "Send as Reel"
-                : "Send to server"}
+              : reelFile
+                ? "Send Reel"
+                : voice
+                  ? "Preview Reel"
+                  : "Send to server"}
         </button>
 
         {status === "success" && result && (
