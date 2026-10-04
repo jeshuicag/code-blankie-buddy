@@ -4,4 +4,4 @@
 - [x] Replace the posting screen with an icon-only guided sequence
 - [x] Guide key save and restore before photo selection
 - [x] Guide crop, voice preview, disguise preview, location, phone, and send
-- [ ] Verify the sequence at desktop and phone sizes without posting
+- [x] Verify the sequence at desktop and phone sizes without posting
