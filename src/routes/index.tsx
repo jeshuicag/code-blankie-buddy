@@ -253,6 +253,7 @@ function Index() {
 
           {step === "location" && (
             <div className="flex w-full items-center gap-3 animate-fade-in">
+              <BackButton onClick={goBack} />
               <ActionButton label="Use current location" pulse onClick={() => void useLocation()} disabled={locating}><MapPin /></ActionButton>
               {locating && gpsCountdown !== null && <span className="text-4xl font-bold tabular-nums text-foreground" aria-live="polite">{gpsCountdown}</span>}
               <label className="flex h-14 flex-1 items-center rounded-md border border-input bg-background px-3"><MapPin className="mr-2 h-5 w-5 text-muted-foreground" /><input value={location} onChange={(event) => setLocation(event.target.value.slice(0, 100))} maxLength={100} aria-label="Location" className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label>
@@ -263,6 +264,7 @@ function Index() {
           {step === "phone" && (
             <div className="flex w-full flex-col items-center gap-4 animate-fade-in">
               <div className="flex w-full items-center gap-3">
+                <BackButton onClick={goBack} />
                 <label className="guide-pulse flex h-16 flex-1 items-center rounded-md border border-primary bg-background px-4"><Phone className="mr-3 h-6 w-6 text-primary" /><input ref={phoneInputRef} type="tel" inputMode="tel" autoFocus value={phone} onChange={(event) => setPhone(event.target.value.slice(0, 20))} maxLength={20} aria-label="Phone number" className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label>
                 <ActionButton label="Continue" variant="outline" onClick={() => setStep("send")}><ChevronRight /></ActionButton>
               </div>
