@@ -275,6 +275,30 @@ function Index() {
                 Restore key
               </button>
             </div>
+            {confirmingKeySave && (
+              <div className="mt-2 rounded-md border border-border bg-background p-3">
+                <p className="text-xs text-foreground">
+                  You already saved a key file from this device. A new copy is
+                  identical — same ID, same hashtag. Save another copy anyway?
+                </p>
+                <div className="mt-2 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void performKeySave()}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    Save another copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingKeySave(false)}
+                    className="font-medium text-muted-foreground underline-offset-4 hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             <input
               ref={keyFileInputRef}
               type="file"
