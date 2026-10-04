@@ -48,6 +48,8 @@ function Index() {
   const [userId, setUserId] = useState<string | null>(null);
   const [voice, setVoice] = useState<Blob | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [reelFile, setReelFile] = useState<File | null>(null);
+  const [reelUrl, setReelUrl] = useState<string | null>(null);
 
   // Give each device a permanent random ID the first time the app opens.
   useEffect(() => {
@@ -119,19 +121,33 @@ function Index() {
     setErrorMessage(null);
   }
 
+  function clearReel() {
+    if (reelUrl) URL.revokeObjectURL(reelUrl);
+    setReelFile(null);
+    setReelUrl(null);
+  }
+
   async function sendPicture() {
     if (!file || !userId || cropping || status === "uploading") return;
     setStatus("uploading");
     setErrorMessage(null);
     try {
-      const formData = new FormData();
-      formData.append("picture", file);
-      formData.append("userId", userId);
-      if (voice) {
+      // With a voice recording, build the Reel first and let the user
+      // preview it before anything is sent.
+      if (voice && !reelFile) {
         setProgress(0);
         const reel = await makeReel(file, voice, setProgress);
         setProgress(null);
-        formData.append("video", reel);
+        setReelFile(reel);
+        setReelUrl(URL.createObjectURL(reel));
+        setStatus("idle");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("picture", file);
+      formData.append("userId", userId);
+      if (reelFile) {
+        formData.append("video", reelFile);
       }
       const response = await fetch("/api/public/upload", {
         method: "POST",
@@ -155,6 +171,7 @@ function Index() {
   function reset() {
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl);
     if (originalUrl) URL.revokeObjectURL(originalUrl);
+    clearReel();
     setFile(null);
     setPreviewUrl(null);
     setOriginalUrl(null);
@@ -284,7 +301,34 @@ function Index() {
           </button>
         </div>
 
-        <VoiceRecorder recording={voice} onChange={setVoice} />
+        <VoiceRecorder
+          recording={voice}
+          onChange={(v) => {
+            clearReel();
+            setVoice(v);
+          }}
+        />
+
+        {reelUrl && (
+          <div className="mt-4">
+            <p className="mb-1 text-sm font-medium text-foreground">
+              Your Reel — watch it before sending
+            </p>
+            <video
+              src={reelUrl}
+              controls
+              playsInline
+              className="max-h-96 w-full rounded-xl border border-border bg-black"
+            />
+            <button
+              type="button"
+              onClick={clearReel}
+              className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Discard Reel
+            </button>
+          </div>
+        )}
 
         <button
           type="button"
@@ -296,9 +340,11 @@ function Index() {
             ? `Making Reel… ${Math.round(progress * 100)}%`
             : status === "uploading"
               ? "Sending…"
-              : voice
-                ? "Send as Reel"
-                : "Send to server"}
+              : reelFile
+                ? "Send Reel"
+                : voice
+                  ? "Preview Reel"
+                  : "Send to server"}
         </button>
 
         {status === "success" && result && (
