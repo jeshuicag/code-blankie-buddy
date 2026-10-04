@@ -48,6 +48,8 @@ function Index() {
   const [userId, setUserId] = useState<string | null>(null);
   const [voice, setVoice] = useState<Blob | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [reelFile, setReelFile] = useState<File | null>(null);
+  const [reelUrl, setReelUrl] = useState<string | null>(null);
 
   // Give each device a permanent random ID the first time the app opens.
   useEffect(() => {
@@ -119,19 +121,33 @@ function Index() {
     setErrorMessage(null);
   }
 
+  function clearReel() {
+    if (reelUrl) URL.revokeObjectURL(reelUrl);
+    setReelFile(null);
+    setReelUrl(null);
+  }
+
   async function sendPicture() {
     if (!file || !userId || cropping || status === "uploading") return;
     setStatus("uploading");
     setErrorMessage(null);
     try {
-      const formData = new FormData();
-      formData.append("picture", file);
-      formData.append("userId", userId);
-      if (voice) {
+      // With a voice recording, build the Reel first and let the user
+      // preview it before anything is sent.
+      if (voice && !reelFile) {
         setProgress(0);
         const reel = await makeReel(file, voice, setProgress);
         setProgress(null);
-        formData.append("video", reel);
+        setReelFile(reel);
+        setReelUrl(URL.createObjectURL(reel));
+        setStatus("idle");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("picture", file);
+      formData.append("userId", userId);
+      if (reelFile) {
+        formData.append("video", reelFile);
       }
       const response = await fetch("/api/public/upload", {
         method: "POST",
