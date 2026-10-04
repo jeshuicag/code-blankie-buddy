@@ -112,8 +112,16 @@ function Index() {
     if (selected.type.startsWith("video/")) {
       resetPhoto();
       try {
+        const url = URL.createObjectURL(selected);
+        const duration = await new Promise<number>((resolve, reject) => {
+          const probe = document.createElement("video");
+          probe.preload = "metadata"; probe.src = url;
+          probe.onloadedmetadata = () => resolve(probe.duration);
+          probe.onerror = () => reject(new Error("Couldn't read this video. Try an MP4 or MOV file."));
+        });
+        setSourceVideo(selected); setSourceVideoUrl(url);
+        if (duration > MAX_VIDEO_SECONDS + 0.5) { setTrimming(true); return; }
         const cover = await videoThumbnail(selected);
-        setSourceVideo(selected); setSourceVideoUrl(URL.createObjectURL(selected));
         setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
       } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't read this video."); setStatus("error"); }
       return;
