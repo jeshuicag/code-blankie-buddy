@@ -105,9 +105,22 @@ function Index() {
   // restore it later (e.g. after clearing browser data or switching phones).
   async function saveKeyFile() {
     if (!userId) return;
+    // If a key file was already saved from this device for this ID,
+    // ask first — a new copy would be identical to the old one.
+    if (localStorage.getItem("photoKeySaved") === userId) {
+      setConfirmingKeySave(true);
+      return;
+    }
+    await performKeySave();
+  }
+
+  async function performKeySave() {
+    if (!userId) return;
+    setConfirmingKeySave(false);
     const contents = `Photo Upload key file\nKeep this file safe. It restores your personal Instagram hashtag.\n\n${userId}\n`;
     const filename = `photo-key-${userId.slice(0, 8)}.txt`;
     const file = new File([contents], filename, { type: "text/plain" });
+    localStorage.setItem("photoKeySaved", userId);
 
     // On phones, the share sheet is the reliable way to save a file.
     const isPhone = window.matchMedia("(pointer: coarse)").matches;
