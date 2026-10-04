@@ -209,6 +209,14 @@ function Index() {
     finally { setLocating(false); setGpsCountdown(null); }
   }
 
+  function goBack() {
+    if (building) return;
+    if (step === "voice") { if (!cropping && !trimming) setStep("photo"); }
+    else if (step === "location") setStep("voice");
+    else if (step === "phone") setStep("location");
+    else if (step === "send") setStep("phone");
+  }
+
   return (
     <TooltipProvider delayDuration={250}>
       <main className="min-h-screen bg-background px-4 py-8">
@@ -233,10 +241,11 @@ function Index() {
 
           {step === "voice" && (
             <div className="flex flex-col items-center gap-3 animate-fade-in">
+              <BackButton onClick={goBack} disabled={building} />
               {sourceVideoUrl ? (
                 <video src={reelUrl ?? sourceVideoUrl} controls playsInline onLoadedMetadata={(e) => { if (!reelUrl && Number.isFinite(e.currentTarget.duration)) setVideoSeconds(e.currentTarget.duration); }} className="max-h-52 w-full rounded-md border border-border bg-foreground" />
               ) : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
-              <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} skipSource={sourceVideo} maxSeconds={sourceVideo ? Math.max(1, Math.ceil(videoSeconds ?? MAX_VIDEO_SECONDS)) : undefined} />
+              <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} skipSource={sourceVideo} maxSeconds={sourceVideo ? Math.max(1, Math.ceil(videoSeconds ?? MAX_VIDEO_SECONDS)) : undefined} busy={building} />
               {building && step === "voice" && progress !== null && <progress className="h-2 w-full accent-primary" max={1} value={progress} aria-label="Adding your voice to the video" />}
               {!voice && !sourceVideo && <ActionButton label="Continue without voice" variant="ghost" onClick={() => setStep("location")}><ChevronRight /></ActionButton>}
             </div>
