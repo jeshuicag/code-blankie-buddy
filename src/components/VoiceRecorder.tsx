@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Mic, Pause, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
+import { Check, Mic, Pause, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -72,7 +72,7 @@ function IconButton({ label, pulse = false, active = false, children, ...props }
   );
 }
 
-export function VoiceRecorder({ recording, onChange, onGuideComplete }: { recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void }) {
+export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource }: { recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null }) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -138,6 +138,11 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
     } catch { setError("Couldn't use the microphone. Please allow microphone access."); }
   }
 
+  function skipRecording() {
+    if (!skipSource) return;
+    setError(null); rawRef.current = skipSource; void applyPreset(skipSource, preset); setGuideStage("first-play");
+  }
+
   function stop() { const rec = recorderRef.current; if (rec && rec.state !== "inactive") rec.stop(); recorderRef.current = null; }
   function clear() { rawRef.current = null; onChange(null); setGuideStage("record"); setPreset("normal"); setProgress(0); setIsPlaying(false); }
   function togglePlay() {
@@ -168,7 +173,10 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
             </span>
           </div>
         ) : !recording ? (
-          <IconButton label="Record voice" pulse={guideStage === "record"} onClick={() => void start()}><Mic /></IconButton>
+          <div className="flex items-center gap-3">
+            <IconButton label="Record voice" pulse={guideStage === "record"} onClick={() => void start()}><Mic /></IconButton>
+            {skipSource && <IconButton label="Skip recording and keep the video's own sound" variant="ghost" onClick={skipRecording}><Mic /><X /></IconButton>}
+          </div>
         ) : (
           <>
             <div className="flex items-center justify-center gap-3">
