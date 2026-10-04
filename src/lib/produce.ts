@@ -6,11 +6,42 @@ import type { LayersModel } from "@tensorflow/tfjs";
 
 // Order must match the training labels.
 const LABELS = [
-  "apples", "bananas", "beetroot", "peppers", "cabbage", "peppers", "carrots", "cauliflower",
-  "chilli peppers", "corn", "cucumbers", "eggplant", "garlic", "ginger", "grapes", "jalapeños",
-  "kiwis", "lemons", "lettuce", "mangoes", "onions", "oranges", "peppers", "pears", "peas",
-  "pineapples", "pomegranates", "potatoes", "radishes", "soy beans", "spinach", "corn",
-  "sweet potatoes", "tomatoes", "turnips", "watermelons",
+  "apples",
+  "bananas",
+  "beetroot",
+  "peppers",
+  "cabbage",
+  "peppers",
+  "carrots",
+  "cauliflower",
+  "chilli peppers",
+  "corn",
+  "cucumbers",
+  "eggplant",
+  "garlic",
+  "ginger",
+  "grapes",
+  "jalapeños",
+  "kiwis",
+  "lemons",
+  "lettuce",
+  "mangoes",
+  "onions",
+  "oranges",
+  "peppers",
+  "pears",
+  "peas",
+  "pineapples",
+  "pomegranates",
+  "potatoes",
+  "radishes",
+  "soy beans",
+  "spinach",
+  "corn",
+  "sweet potatoes",
+  "tomatoes",
+  "turnips",
+  "watermelons",
 ];
 const MIN_CONFIDENCE = 0.35;
 
@@ -63,7 +94,7 @@ export async function detectProduce(imageUrl: string): Promise<string[]> {
 }
 
 export function buildCaption(produce: string[], location: string, phone: string) {
-  const what = produce.length ? `Fresh ${produce.join(" and ")} from a local farm` : "Local farm";
+  const what = produce.length ? `Fresh ${produce.join(" and ")}(?) from a local farm` : "Local farm";
   const where = location.trim() ? ` near ${location.trim()}` : "";
   const contact = phone.trim() || "local tourism guide";
   return `${what}${where}. Contact via ${contact}.`;
