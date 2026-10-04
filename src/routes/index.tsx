@@ -54,6 +54,11 @@ function Index() {
   const [locating, setLocating] = useState(false);
   const [phone, setPhone] = useState("");
 
+  // Download the city list with the app, so the first 📍 tap is instant.
+  useEffect(() => {
+    void import("@/lib/nearest-city").then((m) => m.preloadCities());
+  }, []);
+
   // Give each device a permanent random ID the first time the app opens.
   useEffect(() => {
     let id = localStorage.getItem("photoUserId");
