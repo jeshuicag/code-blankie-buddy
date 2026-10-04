@@ -59,6 +59,7 @@ function Index() {
   const [detecting, setDetecting] = useState(false);
   const [caption, setCaption] = useState("");
   const [captionEdited, setCaptionEdited] = useState(false);
+  const [confirmingKeySave, setConfirmingKeySave] = useState(false);
 
   useEffect(() => {
     preloadProduceModel();
