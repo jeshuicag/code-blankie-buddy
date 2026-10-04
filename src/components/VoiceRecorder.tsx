@@ -86,7 +86,7 @@ function IconButton({ label, pulse = false, active = false, children, ...props }
   );
 }
 
-export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource, maxSeconds }: { maxSeconds?: number | undefined; recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null }) {
+export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource, maxSeconds, busy = false }: { maxSeconds?: number | undefined; recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null; busy?: boolean }) {
   const limit = maxSeconds ?? MAX_SECONDS;
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -206,11 +206,11 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource
               <div className="flex items-center justify-center gap-3" role="group" aria-label="Voice disguise">
                 {PRESETS.map((item) => {
                   const PresetIcon = item.icon;
-                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && !busy && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing || busy} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
                 })}
               </div>
               {guideStage === "choose" && (
-                <IconButton label={`Keep ${PRESETS.find((item) => item.id === preset)?.label ?? "this voice"} and continue`} pulse disabled={isProcessing} onClick={confirmPreset}><Check /></IconButton>
+                <IconButton label={`Keep ${PRESETS.find((item) => item.id === preset)?.label ?? "this voice"} and continue`} pulse={!busy} disabled={isProcessing || busy} onClick={confirmPreset}><Check /></IconButton>
               )}
             </div>
           </>
