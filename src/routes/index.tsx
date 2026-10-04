@@ -123,7 +123,6 @@ function Index() {
         });
         setSourceVideo(selected); setSourceVideoUrl(url);
         if (duration > MAX_VIDEO_SECONDS + 0.5) { setTrimming(true); return; }
-        setTrimEnd(null);
         const cover = await videoThumbnail(selected);
         setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
       } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't read this video."); setStatus("error"); }
@@ -175,7 +174,7 @@ function Index() {
   }
 
   function resetPhoto() {
-    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false); setTrimStart(0); setTrimEnd(null);
+    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false);
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl); if (originalUrl) URL.revokeObjectURL(originalUrl); clearReel();
     setFile(null); setPreviewUrl(null); setOriginalUrl(null); setCropping(false); setVoice(null); setStatus("idle"); setResult(null); setErrorMessage(null); setStep("photo");
     if (libraryInputRef.current) libraryInputRef.current.value = "";
