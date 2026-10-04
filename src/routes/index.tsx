@@ -95,6 +95,7 @@ function Index() {
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
   const [trimming, setTrimming] = useState(false);
   const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState<number | null>(null);
 
   useEffect(() => { preloadProduceModel(); void import("@/lib/nearest-city").then((module) => module.preloadCities()); }, []);
   useEffect(() => {
@@ -124,6 +125,7 @@ function Index() {
         });
         setSourceVideo(selected); setSourceVideoUrl(url);
         if (duration > MAX_VIDEO_SECONDS + 0.5) { setTrimming(true); return; }
+        setTrimEnd(null);
         const cover = await videoThumbnail(selected);
         setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
       } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't read this video."); setStatus("error"); }
@@ -158,8 +160,17 @@ function Index() {
     setTimeout(() => URL.revokeObjectURL(href), 60_000);
   }
 
+  // Keeps a trimmed preview inside the chosen 10 seconds: jumps back when
+  // scrubbed before the clip, and pauses at its end.
+  function clampTrimmedPlayback(event: React.SyntheticEvent<HTMLVideoElement>) {
+    if (trimEnd === null) return;
+    const video = event.currentTarget;
+    if (video.currentTime < trimStart - 0.25) video.currentTime = trimStart;
+    else if (video.currentTime >= trimEnd) { video.pause(); video.currentTime = trimEnd; }
+  }
+
   function resetPhoto() {
-    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false); setTrimStart(0);
+    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false); setTrimStart(0); setTrimEnd(null);
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl); if (originalUrl) URL.revokeObjectURL(originalUrl); clearReel();
     setFile(null); setPreviewUrl(null); setOriginalUrl(null); setCropping(false); setVoice(null); setStatus("idle"); setResult(null); setErrorMessage(null); setStep("photo");
     if (libraryInputRef.current) libraryInputRef.current.value = "";
@@ -184,7 +195,7 @@ function Index() {
           )}
 
           {step === "photo" && trimming && sourceVideoUrl && (
-            <VideoTrimmer src={sourceVideoUrl} onCancel={resetPhoto} onDone={(start) => { setTrimStart(start); setTrimming(false); void videoThumbnail(sourceVideo!).then((cover) => { setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice"); }).catch(() => setStep("voice")); }} />
+            <VideoTrimmer src={sourceVideoUrl} onCancel={resetPhoto} onDone={(start) => { setTrimStart(start); setTrimEnd(start + MAX_VIDEO_SECONDS); setTrimming(false); void videoThumbnail(sourceVideo!, start + MAX_VIDEO_SECONDS / 2).then((cover) => { setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice"); }).catch(() => setStep("voice")); }} />
           )}
 
           {step === "photo" && cropping && previewUrl && (
@@ -193,7 +204,11 @@ function Index() {
 
           {step === "voice" && (
             <div className="flex flex-col items-center gap-3 animate-fade-in">
-              {sourceVideoUrl ? <video src={sourceVideoUrl} controls playsInline className="max-h-52 w-full rounded-md border border-border bg-foreground" /> : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
+              {sourceVideoUrl ? (trimEnd !== null ? (
+                <video src={`${sourceVideoUrl}#t=${trimStart.toFixed(1)},${trimEnd.toFixed(1)}`} controls playsInline onTimeUpdate={clampTrimmedPlayback} className="max-h-52 w-full rounded-md border border-border bg-foreground" />
+              ) : (
+                <video src={sourceVideoUrl} controls playsInline className="max-h-52 w-full rounded-md border border-border bg-foreground" />
+              )) : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
               <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} skipSource={sourceVideo} />
               {!voice && !sourceVideo && <ActionButton label="Continue without voice" variant="ghost" onClick={() => setStep("location")}><ChevronRight /></ActionButton>}
             </div>
