@@ -129,15 +129,18 @@ export async function videoThumbnail(source: Blob): Promise<File> {
 }
 
 // Re-encodes an uploaded video as a 9:16 MP4 Reel. Uses `audio` as the soundtrack when given,
-// otherwise keeps the video's own sound.
+// otherwise keeps the video's own sound. trimStart/trimEnd (seconds) select which part to keep.
 export async function makeVideoReel(
   source: Blob,
   audio: Blob | null,
   onProgress?: (fraction: number) => void,
+  trimStart = 0,
+  trimEnd?: number,
 ): Promise<File> {
   const mime = pickMime();
   if (!mime) throw new Error("This browser can't make videos. Please use Safari or Chrome.");
   const { el, url } = await loadVideo(source);
+  const end = Math.min(trimEnd ?? Infinity, Number.isFinite(el.duration) ? el.duration : Infinity);
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -176,10 +179,11 @@ export async function makeVideoReel(
   let raf = 0;
   const tick = () => {
     draw();
-    if (el.duration > 0 && Number.isFinite(el.duration)) onProgress?.(Math.min(1, el.currentTime / el.duration));
+    if (end > trimStart) onProgress?.(Math.min(1, (el.currentTime - trimStart) / (end - trimStart)));
+    if (el.currentTime >= end) rec.state !== "inactive" && rec.stop();
     raf = requestAnimationFrame(tick);
   };
-  el.currentTime = 0;
+  el.currentTime = trimStart;
   el.onended = () => setTimeout(() => rec.state !== "inactive" && rec.stop(), 200);
   rec.start(1000);
   await el.play();
