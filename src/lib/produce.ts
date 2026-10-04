@@ -1,42 +1,32 @@
-// Recognizes produce in a picture, entirely on the phone (TensorFlow.js MobileNet, ~2 MB).
+// Recognizes produce in a picture, entirely on the phone.
+// MobileNet (~2 MB) turns the picture into features; a small head retrained on
+// 36 fruits/vegetables (public/models/produce, ~180 KB) names the produce.
 import type { MobileNet } from "@tensorflow-models/mobilenet";
+import type { LayersModel } from "@tensorflow/tfjs";
 
-// ImageNet labels that are produce → friendly name.
-const PRODUCE: Record<string, string> = {
-  banana: "bananas",
-  "granny smith": "apples",
-  orange: "oranges",
-  lemon: "lemons",
-  strawberry: "strawberries",
-  pineapple: "pineapples",
-  fig: "figs",
-  pomegranate: "pomegranates",
-  "custard apple": "custard apples",
-  jackfruit: "jackfruit",
-  broccoli: "broccoli",
-  cauliflower: "cauliflower",
-  cucumber: "cucumbers",
-  "bell pepper": "peppers",
-  "head cabbage": "cabbage",
-  zucchini: "zucchini",
-  "spaghetti squash": "squash",
-  "acorn squash": "squash",
-  "butternut squash": "butternut squash",
-  artichoke: "artichokes",
-  cardoon: "cardoons",
-  mushroom: "mushrooms",
-  corn: "corn",
-  ear: "corn",
-};
+// Order must match the training labels.
+const LABELS = [
+  "apples", "bananas", "beetroot", "peppers", "cabbage", "peppers", "carrots", "cauliflower",
+  "chilli peppers", "corn", "cucumbers", "eggplant", "garlic", "ginger", "grapes", "jalapeños",
+  "kiwis", "lemons", "lettuce", "mangoes", "onions", "oranges", "peppers", "pears", "peas",
+  "pineapples", "pomegranates", "potatoes", "radishes", "soy beans", "spinach", "corn",
+  "sweet potatoes", "tomatoes", "turnips", "watermelons",
+];
+const MIN_CONFIDENCE = 0.35;
 
-let modelPromise: Promise<MobileNet> | null = null;
+type Models = { tf: typeof import("@tensorflow/tfjs"); base: MobileNet; head: LayersModel };
+let modelPromise: Promise<Models> | null = null;
 
 function loadModel() {
   if (!modelPromise) {
     modelPromise = (async () => {
-      await import("@tensorflow/tfjs");
+      const tf = await import("@tensorflow/tfjs");
       const mobilenet = await import("@tensorflow-models/mobilenet");
-      return mobilenet.load({ version: 2, alpha: 0.5 });
+      const [base, head] = await Promise.all([
+        mobilenet.load({ version: 2, alpha: 0.5 }),
+        tf.loadLayersModel("/models/produce/model.json"),
+      ]);
+      return { tf, base, head };
     })();
     modelPromise.catch(() => (modelPromise = null));
   }
@@ -50,20 +40,25 @@ export function preloadProduceModel() {
 
 /** Returns produce names found in the picture (best first), or [] if none. */
 export async function detectProduce(imageUrl: string): Promise<string[]> {
-  const model = await loadModel();
+  const { tf, base, head } = await loadModel();
   const img = new Image();
   img.src = imageUrl;
   await img.decode();
-  const predictions = await model.classify(img, 10);
-  const found: string[] = [];
-  for (const p of predictions) {
-    if (p.probability < 0.05) continue;
-    for (const label of p.className.toLowerCase().split(",").map((s) => s.trim())) {
-      const name = PRODUCE[label];
-      if (name && !found.includes(name)) found.push(name);
-    }
-  }
-  return found.slice(0, 2);
+  const probs = tf.tidy(() => {
+    const features = base.infer(img, true) as import("@tensorflow/tfjs").Tensor;
+    return (head.predict(features) as import("@tensorflow/tfjs").Tensor).dataSync();
+  });
+  // Sum confusable labels (e.g. the three pepper classes) into one name.
+  const score = new Map<string, number>();
+  probs.forEach((p, i) => {
+    const name = LABELS[i]!;
+    score.set(name, (score.get(name) ?? 0) + p);
+  });
+  return [...score.entries()]
+    .filter(([, p]) => p >= MIN_CONFIDENCE)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([name]) => name);
 }
 
 export function buildCaption(produce: string[], location: string, phone: string) {
