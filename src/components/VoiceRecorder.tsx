@@ -135,7 +135,7 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   }
 
   function stop() { const rec = recorderRef.current; if (rec && rec.state !== "inactive") rec.stop(); recorderRef.current = null; }
-  function clear() { rawRef.current = null; onChange(null); setGuideStage("record"); setPreset("normal"); }
+  function clear() { rawRef.current = null; onChange(null); setGuideStage("record"); setPreset("normal"); setProgress(0); setIsPlaying(false); }
   function togglePlay() {
     const audio = audioRef.current;
     if (!audio) return;
