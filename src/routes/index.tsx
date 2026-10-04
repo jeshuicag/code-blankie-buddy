@@ -3,10 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronRight,
-  Download,
   Film,
   Image as ImageIcon,
-  KeyRound,
   MapPin,
   Phone,
   Play,
@@ -36,8 +34,8 @@ export const Route = createFileRoute("/")({
 });
 
 type UploadResult = { filename: string; size: number; type: string };
-type GuideStep = "save-key" | "restore-key" | "photo" | "voice" | "location" | "phone" | "send";
-const GUIDE_STEPS: GuideStep[] = ["save-key", "restore-key", "photo", "voice", "location", "phone", "send"];
+type GuideStep = "photo" | "voice" | "location" | "phone" | "send";
+const GUIDE_STEPS: GuideStep[] = ["photo", "voice", "location", "phone", "send"];
 
 function ActionButton({ label, pulse = false, children, ...props }: React.ComponentProps<typeof Button> & { label: string; pulse?: boolean }) {
   return (
@@ -52,7 +50,7 @@ function ActionButton({ label, pulse = false, children, ...props }: React.Compon
 
 function StepPath({ current }: { current: GuideStep }) {
   const currentIndex = GUIDE_STEPS.indexOf(current);
-  const icons = [KeyRound, Upload, ImageIcon, Play, MapPin, Phone, Send];
+  const icons = [ImageIcon, Play, MapPin, Phone, Send];
   return (
     <div className="mb-8 flex w-full items-center justify-between" aria-label="Posting progress">
       {icons.map((Icon, index) => (
@@ -69,9 +67,8 @@ function StepPath({ current }: { current: GuideStep }) {
 
 function Index() {
   const libraryInputRef = useRef<HTMLInputElement>(null);
-  const keyFileInputRef = useRef<HTMLInputElement>(null);
   const phoneInputRef = useRef<HTMLInputElement>(null);
-  const [step, setStep] = useState<GuideStep>("save-key");
+  const [step, setStep] = useState<GuideStep>("photo");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
@@ -91,7 +88,6 @@ function Index() {
   const [produce, setProduce] = useState<string[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [caption, setCaption] = useState("");
-  const [confirmingKeySave, setConfirmingKeySave] = useState(false);
 
   useEffect(() => { preloadProduceModel(); void import("@/lib/nearest-city").then((module) => module.preloadCities()); }, []);
   useEffect(() => {
@@ -106,36 +102,6 @@ function Index() {
     if (!id || !/^[a-f0-9]{32}$/.test(id)) { id = crypto.randomUUID().replace(/-/g, ""); localStorage.setItem("photoUserId", id); }
     setUserId(id);
   }, []);
-
-  async function saveKeyFile() {
-    if (!userId) return;
-    if (localStorage.getItem("photoKeySaved") === userId) { setConfirmingKeySave(true); return; }
-    await performKeySave();
-  }
-
-  async function performKeySave() {
-    if (!userId) return;
-    setConfirmingKeySave(false);
-    const contents = `Photo Upload key file\nKeep this file safe. It restores your personal Instagram hashtag.\n\n${userId}\n`;
-    const keyFile = new File([contents], "🔑.txt", { type: "text/plain" });
-    const isPhone = window.matchMedia("(pointer: coarse)").matches;
-    if (isPhone && navigator.canShare?.({ files: [keyFile] })) {
-      try { await navigator.share({ files: [keyFile], title: "🔑" }); localStorage.setItem("photoKeySaved", userId); setStep("restore-key"); return; }
-      catch { return; }
-    }
-    const url = URL.createObjectURL(new Blob([contents], { type: "text/plain" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "🔑.txt"; anchor.rel = "noopener"; document.body.appendChild(anchor); anchor.click(); anchor.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    localStorage.setItem("photoKeySaved", userId); setStep("restore-key");
-  }
-
-  async function restoreKeyFile(selected: File | null) {
-    if (!selected) return;
-    const text = await selected.text(); const match = text.match(/[a-f0-9]{32}/);
-    if (!match) { setErrorMessage("That file doesn't contain a valid key."); setStatus("error"); return; }
-    localStorage.setItem("photoUserId", match[0]); localStorage.setItem("photoKeySaved", match[0]); setUserId(match[0]);
-    setStatus("idle"); setErrorMessage(null); setStep("photo");
-  }
 
   function pickFile(selected: File | null) {
     if (!selected) return;
@@ -179,24 +145,7 @@ function Index() {
       <main className="min-h-screen bg-background px-4 py-8">
         <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md flex-col items-center justify-center">
           <StepPath current={step} />
-          <input ref={keyFileInputRef} type="file" accept=".txt,text/plain" className="hidden" onChange={(event) => { void restoreKeyFile(event.target.files?.[0] ?? null); event.target.value = ""; }} />
           <input ref={libraryInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => pickFile(event.target.files?.[0] ?? null)} />
-
-          {step === "save-key" && userId && (
-            <div className="flex flex-col items-center gap-5 animate-fade-in">
-              <ActionButton label="Download key file" pulse onClick={() => void saveKeyFile()}><Download /><KeyRound /></ActionButton>
-              {confirmingKeySave && (
-                <div className="flex gap-3">
-                  <ActionButton label="Download another copy" pulse onClick={() => void performKeySave()}><Download /><KeyRound /></ActionButton>
-                  <ActionButton label="Cancel" variant="outline" onClick={() => setConfirmingKeySave(false)}><RotateCcw /></ActionButton>
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === "restore-key" && (
-            <ActionButton label="Find and upload your saved key file" pulse onClick={() => keyFileInputRef.current?.click()}><Upload /><KeyRound /></ActionButton>
-          )}
 
           {step === "photo" && !cropping && (
             <ActionButton label="Upload a picture" pulse onClick={() => libraryInputRef.current?.click()}><Upload /><ImageIcon /></ActionButton>
