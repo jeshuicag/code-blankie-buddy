@@ -143,7 +143,8 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource
         setIsRecording(false);
         if (!maxSeconds && (Date.now() - startedAt) / 1000 < MIN_SECONDS) { setError(`Recordings must be at least ${MIN_SECONDS} seconds long.`); return; }
         const recorded = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
-        void (maxSeconds ? padWithSilence(recorded, maxSeconds) : Promise.resolve(recorded)).then((raw) => { rawRef.current = raw; void applyPreset(raw, preset); }); setGuideStage("first-play");
+        // Videos: pad to the clip length. Photos: pad to at least 3 s (Instagram's Reel minimum).
+        void padWithSilence(recorded, maxSeconds ?? 3).then((raw) => { rawRef.current = raw; void applyPreset(raw, preset); }); setGuideStage("first-play");
       };
       recorderRef.current = rec; rec.start(); setSeconds(limit); setIsRecording(true);
       timerRef.current = window.setInterval(() => {
