@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { buildCaption, detectProduce, preloadProduceModel } from "@/lib/produce";
 import { PhotoCropper } from "@/components/PhotoCropper";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { makeReel } from "@/lib/make-reel";
@@ -54,6 +55,35 @@ function Index() {
   const [locating, setLocating] = useState(false);
   const [gpsCountdown, setGpsCountdown] = useState<number | null>(null);
   const [phone, setPhone] = useState("");
+  const [produce, setProduce] = useState<string[]>([]);
+  const [detecting, setDetecting] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [captionEdited, setCaptionEdited] = useState(false);
+
+  useEffect(() => {
+    preloadProduceModel();
+  }, []);
+
+  // Recognize produce in the (cropped) picture, on the phone.
+  useEffect(() => {
+    if (!previewUrl) {
+      setProduce([]);
+      return;
+    }
+    let cancelled = false;
+    setDetecting(true);
+    detectProduce(previewUrl)
+      .then((p) => !cancelled && setProduce(p))
+      .catch(() => !cancelled && setProduce([]))
+      .finally(() => !cancelled && setDetecting(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [previewUrl]);
+
+  useEffect(() => {
+    if (!captionEdited) setCaption(buildCaption(produce, location, phone));
+  }, [produce, location, phone, captionEdited]);
 
   // Download the city list with the app, so the first 📍 tap is instant.
   useEffect(() => {
@@ -157,6 +187,7 @@ function Index() {
       formData.append("userId", userId);
       if (location.trim()) formData.append("location", location.trim());
       if (phone.trim()) formData.append("phone", phone.trim());
+      if (caption.trim()) formData.append("caption", caption.trim());
       if (reelFile) {
         formData.append("video", reelFile);
       }
@@ -394,6 +425,34 @@ function Index() {
             />
           </label>
         </div>
+
+        {file && (
+          <label className="block space-y-1">
+            <span className="text-xs text-muted-foreground">
+              ✍️ {detecting ? "Looking for produce…" : "Caption (editable)"}
+            </span>
+            <textarea
+              value={caption}
+              onChange={(e) => {
+                setCaptionEdited(true);
+                setCaption(e.target.value.slice(0, 2000));
+              }}
+              rows={3}
+              maxLength={2000}
+              aria-label="Post caption"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
+            />
+            {captionEdited && (
+              <button
+                type="button"
+                onClick={() => setCaptionEdited(false)}
+                className="text-xs text-muted-foreground underline"
+              >
+                Reset to suggested caption
+              </button>
+            )}
+          </label>
+        )}
 
         <button
           type="button"

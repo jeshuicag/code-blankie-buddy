@@ -21,6 +21,12 @@ export const Route = createFileRoute("/api/public/upload")({
         // Optional contact details, included in the caption.
         const location = String(formData.get("location") ?? "").trim();
         const phone = String(formData.get("phone") ?? "").trim();
+        const caption = String(formData.get("caption") ?? "").trim();
+        if (caption.length > 2000) {
+          return new Response("Caption is too long (max 2000 characters)", {
+            status: 400,
+          });
+        }
         if (location.length > 100) {
           return new Response("Location is too long (max 100 characters)", {
             status: 400,
@@ -131,9 +137,14 @@ export const Route = createFileRoute("/api/public/upload")({
           }
 
           // 4. Publish the post to Instagram right away.
-          const captionLines = [`#pu${userId}`];
-          if (location) captionLines.push(`📍 ${location}`);
-          if (phone) captionLines.push(`📞 ${phone}`);
+          const captionLines: string[] = [];
+          if (caption) {
+            captionLines.push(caption, "");
+          } else {
+            if (location) captionLines.push(`📍 ${location}`);
+            if (phone) captionLines.push(`📞 ${phone}`);
+          }
+          captionLines.push(`#pu${userId}`);
           const postRes = await fetch(`${ZERNIO_BASE}/posts`, {
             method: "POST",
             headers: authHeaders,
