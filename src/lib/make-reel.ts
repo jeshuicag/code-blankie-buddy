@@ -19,6 +19,24 @@ export function canMakeReel(): boolean {
   return typeof MediaRecorder !== "undefined" && pickMime() !== null;
 }
 
+// MediaRecorder writes "streaming" MP4s with no total length, so players show them
+// as live broadcasts with a huge/unknown duration. Re-package (no re-encode) into a
+// normal MP4 that records its real length.
+async function finalizeMp4(blob: Blob): Promise<File> {
+  try {
+    const { Input, Output, Conversion, BlobSource, BufferTarget, Mp4OutputFormat, ALL_FORMATS } = await import("mediabunny");
+    const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+    const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target: new BufferTarget() });
+    const conversion = await Conversion.init({ input, output, trim: { start: 0, end: MAX_REEL_SECONDS } });
+    await conversion.execute();
+    const buf = (output.target as InstanceType<typeof BufferTarget>).buffer;
+    if (buf && buf.byteLength > 0) return new File([buf], "reel.mp4", { type: "video/mp4" });
+  } catch (err) {
+    console.warn("Couldn't re-package reel", err);
+  }
+  return new File([blob], "reel.mp4", { type: "video/mp4" });
+}
+
 export async function makeReel(
   picture: Blob,
   audio: Blob,
@@ -91,7 +109,7 @@ export async function makeReel(
     raf = requestAnimationFrame(tick);
   };
 
-  rec.start(1000);
+  rec.start();
   source.start();
   tick();
   source.onended = () => setTimeout(() => rec.state !== "inactive" && rec.stop(), 300);
@@ -102,7 +120,7 @@ export async function makeReel(
   await audioCtx.close();
   URL.revokeObjectURL(imgUrl);
 
-  return new File([new Blob(chunks, { type: "video/mp4" })], "reel.mp4", { type: "video/mp4" });
+  return finalizeMp4(new Blob(chunks, { type: "video/mp4" }));
 }
 
 function loadVideo(source: Blob): Promise<{ el: HTMLVideoElement; url: string }> {
@@ -192,7 +210,7 @@ export async function makeVideoReel(
   };
   el.currentTime = trimStart;
   el.onended = () => setTimeout(() => rec.state !== "inactive" && rec.stop(), 200);
-  rec.start(1000);
+  rec.start();
   await el.play();
   voice?.start();
   tick();
@@ -203,5 +221,5 @@ export async function makeVideoReel(
   stream.getTracks().forEach((t) => t.stop());
   await audioCtx.close();
   URL.revokeObjectURL(url);
-  return new File([new Blob(chunks, { type: "video/mp4" })], "reel.mp4", { type: "video/mp4" });
+  return finalizeMp4(new Blob(chunks, { type: "video/mp4" }));
 }
