@@ -155,7 +155,7 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
   return (
     <TooltipProvider delayDuration={250}>
       <div className="flex flex-col items-center gap-3 py-2">
-        <audio ref={audioRef} src={url ?? undefined} className="hidden" />
+        <audio ref={audioRef} src={url ?? undefined} className="hidden" onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onTimeUpdate={handleTimeUpdate} onEnded={handleEnded} />
         {isRecording ? (
           <div className="flex flex-col items-center gap-2">
             <IconButton label={`Stop recording, ${seconds} seconds remaining`} pulse onClick={stop} variant="destructive"><Square /></IconButton>
