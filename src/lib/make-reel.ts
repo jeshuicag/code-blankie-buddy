@@ -147,7 +147,7 @@ export async function makeVideoReel(
   const mime = pickMime();
   if (!mime) throw new Error("This browser can't make videos. Please use Safari or Chrome.");
   const { el, url } = await loadVideo(source);
-  const end = Math.min(trimEnd ?? Infinity, Number.isFinite(el.duration) ? el.duration : Infinity);
+  const end = Math.min(trimEnd ?? Infinity, Number.isFinite(el.duration) ? el.duration : Infinity, trimStart + MAX_REEL_SECONDS);
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
