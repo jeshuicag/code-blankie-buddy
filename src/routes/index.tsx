@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { buildCaption, detectProduce, preloadProduceModel } from "@/lib/produce";
 import { PhotoCropper } from "@/components/PhotoCropper";
+import { VideoTrimmer, MAX_VIDEO_SECONDS } from "@/components/VideoTrimmer";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { makeReel, makeVideoReel, videoThumbnail } from "@/lib/make-reel";
 
@@ -92,6 +93,8 @@ function Index() {
   const [caption, setCaption] = useState("");
   const [sourceVideo, setSourceVideo] = useState<File | null>(null);
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
+  const [trimming, setTrimming] = useState(false);
+  const [trimStart, setTrimStart] = useState(0);
 
   useEffect(() => { preloadProduceModel(); void import("@/lib/nearest-city").then((module) => module.preloadCities()); }, []);
   useEffect(() => {
@@ -138,7 +141,7 @@ function Index() {
     setStatus("uploading"); setErrorMessage(null);
     try {
       if ((voice || sourceVideo) && !reelFile) {
-        setProgress(0); const reel = sourceVideo ? await makeVideoReel(sourceVideo, voice, setProgress) : await makeReel(file, voice!, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
+        setProgress(0); const reel = sourceVideo ? await makeVideoReel(sourceVideo, voice, setProgress, trimStart, trimStart + MAX_VIDEO_SECONDS) : await makeReel(file, voice!, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
       }
       const formData = new FormData(); formData.append("picture", file); formData.append("userId", userId);
       if (location.trim()) formData.append("location", location.trim()); if (phone.trim()) formData.append("phone", phone.trim()); if (caption.trim()) formData.append("caption", caption.trim()); if (reelFile) formData.append("video", reelFile);
@@ -156,7 +159,7 @@ function Index() {
   }
 
   function resetPhoto() {
-    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null);
+    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false); setTrimStart(0);
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl); if (originalUrl) URL.revokeObjectURL(originalUrl); clearReel();
     setFile(null); setPreviewUrl(null); setOriginalUrl(null); setCropping(false); setVoice(null); setStatus("idle"); setResult(null); setErrorMessage(null); setStep("photo");
     if (libraryInputRef.current) libraryInputRef.current.value = "";
@@ -176,8 +179,12 @@ function Index() {
           <StepPath current={step} />
           <input ref={libraryInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(event) => void pickFile(event.target.files?.[0] ?? null)} />
 
-          {step === "photo" && !cropping && (
+          {step === "photo" && !cropping && !trimming && (
             <ActionButton label="Upload a picture or video" pulse onClick={() => libraryInputRef.current?.click()}><Upload /><ImageIcon /></ActionButton>
+          )}
+
+          {step === "photo" && trimming && sourceVideoUrl && (
+            <VideoTrimmer src={sourceVideoUrl} onCancel={resetPhoto} onDone={(start) => { setTrimStart(start); setTrimming(false); void videoThumbnail(sourceVideo!).then((cover) => { setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice"); }).catch(() => setStep("voice")); }} />
           )}
 
           {step === "photo" && cropping && previewUrl && (
