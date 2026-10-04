@@ -86,7 +86,7 @@ function IconButton({ label, pulse = false, active = false, children, ...props }
   );
 }
 
-export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource, maxSeconds }: { maxSeconds?: number | undefined; recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null }) {
+export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource, maxSeconds, busy = false }: { maxSeconds?: number | undefined; recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void; skipSource?: Blob | null; busy?: boolean }) {
   const limit = maxSeconds ?? MAX_SECONDS;
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -125,7 +125,7 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource
   }
 
   function confirmPreset() {
-    if (isProcessing) return;
+    if (isProcessing || busy) return;
     if (guideStage === "choose") onGuideComplete?.();
   }
 
@@ -195,9 +195,9 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource
         ) : (
           <>
             <div className="flex items-center justify-center gap-3">
-              <IconButton label={isPlaying ? "Pause recording" : "Play recording"} pulse={guideStage === "first-play" || guideStage === "second-play"} onClick={togglePlay} disabled={isProcessing}>{isPlaying ? <Pause /> : <Play />}</IconButton>
-              <IconButton label="Record again" onClick={() => { clear(); void start(); }}><RotateCcw /></IconButton>
-              <IconButton label="Delete recording" onClick={clear}><Trash2 /></IconButton>
+              <IconButton label={isPlaying ? "Pause recording" : "Play recording"} pulse={(guideStage === "first-play" || guideStage === "second-play") && !busy} onClick={togglePlay} disabled={isProcessing || busy}>{isPlaying ? <Pause /> : <Play />}</IconButton>
+              <IconButton label="Record again" onClick={() => { clear(); void start(); }} disabled={busy}><RotateCcw /></IconButton>
+              <IconButton label="Delete recording" onClick={clear} disabled={busy}><Trash2 /></IconButton>
             </div>
             <div className="h-1.5 w-48 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Playback progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
               <div className="h-full rounded-full bg-primary transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
@@ -206,11 +206,11 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete, skipSource
               <div className="flex items-center justify-center gap-3" role="group" aria-label="Voice disguise">
                 {PRESETS.map((item) => {
                   const PresetIcon = item.icon;
-                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && !busy && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing || busy} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
                 })}
               </div>
               {guideStage === "choose" && (
-                <IconButton label={`Keep ${PRESETS.find((item) => item.id === preset)?.label ?? "this voice"} and continue`} pulse disabled={isProcessing} onClick={confirmPreset}><Check /></IconButton>
+                <IconButton label={`Keep ${PRESETS.find((item) => item.id === preset)?.label ?? "this voice"} and continue`} pulse={!busy} disabled={isProcessing || busy} onClick={confirmPreset}><Check /></IconButton>
               )}
             </div>
           </>
