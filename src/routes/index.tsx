@@ -277,6 +277,7 @@ function Index() {
               {reelUrl ? <video src={reelUrl} controls playsInline className="max-h-96 w-full rounded-md border border-border bg-foreground" /> : previewUrl && <img src={previewUrl} alt="Ready to send" className="max-h-72 w-full rounded-md border border-border object-contain" />}
               <textarea value={caption} onChange={(event) => setCaption(event.target.value.slice(0, 2000))} maxLength={2000} rows={3} aria-label="Post caption" className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary" />
               <div className="flex items-center gap-3">
+                <BackButton onClick={goBack} disabled={building} />
                 <ActionButton label="Start over with another picture" variant="outline" onClick={resetPhoto}><RotateCcw /></ActionButton>
                 <ActionButton label={reelFile ? "Send Reel" : "Send picture"} pulse={!building} disabled={!file || !userId || status === "uploading" || building || ((!!voice || !!sourceVideo) && !reelFile)} onClick={() => void sendPicture()}>
                   {reelFile ? <Send /> : building ? <Film /> : <Upload />}
