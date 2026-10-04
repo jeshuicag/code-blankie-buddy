@@ -18,6 +18,20 @@ export const Route = createFileRoute("/api/public/upload")({
           return new Response("Missing or invalid user ID", { status: 400 });
         }
 
+        // Optional contact details, included in the caption.
+        const location = String(formData.get("location") ?? "").trim();
+        const phone = String(formData.get("phone") ?? "").trim();
+        if (location.length > 100) {
+          return new Response("Location is too long (max 100 characters)", {
+            status: 400,
+          });
+        }
+        if (phone && !/^\+?[\d\s().-]{5,20}$/.test(phone)) {
+          return new Response("That doesn't look like a phone number", {
+            status: 400,
+          });
+        }
+
         if (!(picture instanceof File)) {
           return new Response("Missing picture file", { status: 400 });
         }
