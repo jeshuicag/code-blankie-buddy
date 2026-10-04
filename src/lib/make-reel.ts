@@ -3,6 +3,8 @@
 
 const W = 720;
 const H = 1280;
+// Reels are never longer than this, whatever the source material.
+export const MAX_REEL_SECONDS = 10;
 
 function pickMime(): string | null {
   const options = [
