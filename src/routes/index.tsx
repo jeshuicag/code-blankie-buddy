@@ -51,6 +51,7 @@ function Index() {
   const [reelFile, setReelFile] = useState<File | null>(null);
   const [reelUrl, setReelUrl] = useState<string | null>(null);
   const [location, setLocation] = useState("");
+  const [locating, setLocating] = useState(false);
   const [phone, setPhone] = useState("");
 
   // Give each device a permanent random ID the first time the app opens.
@@ -336,7 +337,27 @@ function Index() {
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <label className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2.5">
-            <span aria-hidden="true">📍</span>
+            <button
+              type="button"
+              aria-label="Use my current location"
+              title="Use my current location"
+              disabled={locating}
+              onClick={async (e) => {
+                e.preventDefault();
+                setLocating(true);
+                try {
+                  const { findNearestCity } = await import("@/lib/nearest-city");
+                  setLocation(await findNearestCity());
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "Could not get location");
+                } finally {
+                  setLocating(false);
+                }
+              }}
+              className={locating ? "animate-pulse" : ""}
+            >
+              📍
+            </button>
             <input
               type="text"
               value={location}
