@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Check,
   Download,
   ChevronRight,
@@ -65,6 +66,17 @@ function StepPath({ current }: { current: GuideStep }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function BackButton({ onClick, disabled = false }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-12 w-12" aria-label="Go back" title="Go back" disabled={disabled} onClick={onClick}><ArrowLeft /></Button>
+      </TooltipTrigger>
+      <TooltipContent>Go back</TooltipContent>
+    </Tooltip>
   );
 }
 
