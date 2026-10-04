@@ -3,6 +3,8 @@
 
 const W = 720;
 const H = 1280;
+// Reels are never longer than this, whatever the source material.
+export const MAX_REEL_SECONDS = 10;
 
 function pickMime(): string | null {
   const options = [
@@ -60,7 +62,12 @@ export async function makeReel(
   draw();
 
   const audioCtx = new AudioContext();
-  const buffer = await audioCtx.decodeAudioData(await audio.arrayBuffer());
+  const fullBuffer = await audioCtx.decodeAudioData(await audio.arrayBuffer());
+  // Never let a photo Reel run past the cap, even if the recording is longer.
+  const maxLength = Math.ceil(MAX_REEL_SECONDS * fullBuffer.sampleRate);
+  const buffer = fullBuffer.length > maxLength
+    ? (() => { const cut = new AudioBuffer({ length: maxLength, numberOfChannels: 1, sampleRate: fullBuffer.sampleRate }); cut.copyToChannel(fullBuffer.getChannelData(0).subarray(0, maxLength), 0); return cut; })()
+    : fullBuffer;
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
   const dest = audioCtx.createMediaStreamDestination();
@@ -140,7 +147,7 @@ export async function makeVideoReel(
   const mime = pickMime();
   if (!mime) throw new Error("This browser can't make videos. Please use Safari or Chrome.");
   const { el, url } = await loadVideo(source);
-  const end = Math.min(trimEnd ?? Infinity, Number.isFinite(el.duration) ? el.duration : Infinity);
+  const end = Math.min(trimEnd ?? Infinity, Number.isFinite(el.duration) ? el.duration : Infinity, trimStart + MAX_REEL_SECONDS);
 
   const canvas = document.createElement("canvas");
   canvas.width = W;

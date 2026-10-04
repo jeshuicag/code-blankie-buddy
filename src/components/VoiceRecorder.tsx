@@ -53,7 +53,9 @@ async function padWithSilence(raw: Blob, seconds: number): Promise<Blob> {
     const ctx = new AudioContext();
     const buffer = await ctx.decodeAudioData(await raw.arrayBuffer());
     await ctx.close();
-    const length = Math.max(buffer.length, Math.ceil(seconds * buffer.sampleRate));
+    // Pad up to the video's length, but never past the 10-second Reel cap.
+    const target = Math.min(seconds, MAX_SECONDS);
+    const length = Math.min(Math.max(buffer.length, Math.ceil(target * buffer.sampleRate)), Math.ceil(MAX_SECONDS * buffer.sampleRate));
     if (length === buffer.length) return raw;
     const padded = new AudioBuffer({ length, numberOfChannels: 1, sampleRate: buffer.sampleRate });
     padded.copyToChannel(buffer.getChannelData(0), 0);
