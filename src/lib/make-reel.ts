@@ -39,14 +39,23 @@ export async function makeReel(
   canvas.height = H;
   const ctx = canvas.getContext("2d")!;
 
-  const draw = () => {
+  // t: 0→1 over the Reel. Slow zoom-in (1.0→1.12) with a slight upward drift.
+  const draw = (t = 0) => {
+    const e = t * t * (3 - 2 * t); // ease in-out
+    const z = 1 + 0.12 * e;
+    const dy = -H * 0.02 * e;
+    ctx.save();
+    ctx.translate(W / 2, H / 2 + dy);
+    ctx.scale(z, z);
+    ctx.translate(-W / 2, -H / 2);
     // Blurred fill behind, picture fitted in the middle.
-    const cover = Math.max(W / img.width, H / img.height);
+    const cover = Math.max(W / img.width, H / img.height) * 1.15;
     ctx.filter = "blur(40px) brightness(0.6)";
     ctx.drawImage(img, (W - img.width * cover) / 2, (H - img.height * cover) / 2, img.width * cover, img.height * cover);
     ctx.filter = "none";
     const fit = Math.min(W / img.width, H / img.height);
     ctx.drawImage(img, (W - img.width * fit) / 2, (H - img.height * fit) / 2, img.width * fit, img.height * fit);
+    ctx.restore();
   };
   draw();
 
@@ -69,8 +78,9 @@ export async function makeReel(
   let raf = 0;
   const startedAt = performance.now();
   const tick = () => {
-    draw(); // keep frames flowing
-    onProgress?.(Math.min(1, (performance.now() - startedAt) / 1000 / buffer.duration));
+    const p = Math.min(1, (performance.now() - startedAt) / 1000 / buffer.duration);
+    draw(p);
+    onProgress?.(p);
     raf = requestAnimationFrame(tick);
   };
 
