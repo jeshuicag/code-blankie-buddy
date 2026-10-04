@@ -52,6 +52,7 @@ function Index() {
   const [reelUrl, setReelUrl] = useState<string | null>(null);
   const [location, setLocation] = useState("");
   const [locating, setLocating] = useState(false);
+  const [gpsCountdown, setGpsCountdown] = useState<number | null>(null);
   const [phone, setPhone] = useState("");
 
   // Download the city list with the app, so the first 📍 tap is instant.
@@ -350,19 +351,26 @@ function Index() {
               onClick={async (e) => {
                 e.preventDefault();
                 setLocating(true);
+                setGpsCountdown(45);
                 try {
                   const { findNearestCity } = await import("@/lib/nearest-city");
-                  setLocation(await findNearestCity());
+                  setLocation(await findNearestCity(setGpsCountdown));
                 } catch (err) {
                   alert(err instanceof Error ? err.message : "Could not get location");
                 } finally {
                   setLocating(false);
+                  setGpsCountdown(null);
                 }
               }}
               className={locating ? "animate-pulse" : ""}
             >
               📍
             </button>
+            {locating && gpsCountdown !== null && (
+              <span className="text-xs tabular-nums text-muted-foreground" aria-live="polite">
+                {gpsCountdown}s
+              </span>
+            )}
             <input
               type="text"
               value={location}
