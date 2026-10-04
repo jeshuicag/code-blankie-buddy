@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const MIN_SECONDS = 3;
-export const MAX_SECONDS = 90;
+export const MAX_SECONDS = 10;
 
 type VoicePreset = "normal" | "deep" | "high";
 type GuideStage = "record" | "first-play" | "disguise" | "second-play" | "choose";
@@ -122,8 +122,13 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
         const raw = new Blob(chunks, { type: rec.mimeType || "audio/webm" }); rawRef.current = raw;
         void applyPreset(raw, preset); setGuideStage("first-play");
       };
-      recorderRef.current = rec; rec.start(); setSeconds(0); setIsRecording(true);
-      timerRef.current = window.setInterval(() => { const elapsed = Math.floor((Date.now() - startedAt) / 1000); setSeconds(elapsed); if (elapsed >= MAX_SECONDS) stop(); }, 250);
+      recorderRef.current = rec; rec.start(); setSeconds(MAX_SECONDS); setIsRecording(true);
+      timerRef.current = window.setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        const remaining = Math.max(0, MAX_SECONDS - elapsed);
+        setSeconds(remaining);
+        if (remaining === 0) stop();
+      }, 250);
     } catch { setError("Couldn't use the microphone. Please allow microphone access."); }
   }
 
@@ -140,7 +145,12 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
       <div className="flex flex-col items-center gap-3 py-2">
         <audio ref={audioRef} src={url ?? undefined} className="hidden" />
         {isRecording ? (
-          <IconButton label={`Stop recording, ${seconds} seconds`} pulse onClick={stop} variant="destructive"><Square /></IconButton>
+          <div className="flex flex-col items-center gap-2">
+            <IconButton label={`Stop recording, ${seconds} seconds remaining`} pulse onClick={stop} variant="destructive"><Square /></IconButton>
+            <span className="text-2xl font-semibold tabular-nums text-foreground" aria-live="polite" aria-label={`${seconds} seconds remaining`}>
+              {seconds}
+            </span>
+          </div>
         ) : !recording ? (
           <IconButton label="Record voice" pulse={guideStage === "record"} onClick={() => void start()}><Mic /></IconButton>
         ) : (
@@ -150,16 +160,12 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
               <IconButton label="Record again" onClick={() => { clear(); void start(); }}><RotateCcw /></IconButton>
               <IconButton label="Delete recording" onClick={clear}><Trash2 /></IconButton>
             </div>
-            {(guideStage === "disguise" || guideStage === "second-play" || guideStage === "choose") && (
-              <div className="flex items-center justify-center gap-3 animate-fade-in">
-                {PRESETS.map((item) => {
-                  const PresetIcon = item.icon;
-                  const visible = guideStage === "choose" || item.id === "deep";
-                  if (!visible) return null;
-                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={(guideStage === "disguise" && item.id === "deep") || guideStage === "choose"} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
-                })}
-              </div>
-            )}
+            <div className="flex items-center justify-center gap-3 animate-fade-in" role="group" aria-label="Voice disguise">
+              {PRESETS.map((item) => {
+                const PresetIcon = item.icon;
+                return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+              })}
+            </div>
           </>
         )}
         {isProcessing && <span className="h-2 w-2 animate-ping rounded-full bg-primary" aria-label="Changing voice" />}
