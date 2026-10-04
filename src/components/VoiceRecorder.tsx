@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Pause, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
+import { Check, Mic, Pause, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -107,6 +107,10 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
     setPreset(next); setError(null);
     if (rawRef.current) void applyPreset(rawRef.current, next);
     if (guideStage === "disguise") setGuideStage("second-play");
+  }
+
+  function confirmPreset() {
+    if (isProcessing) return;
     if (guideStage === "choose") onGuideComplete?.();
   }
 
@@ -176,11 +180,16 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
               <div className="h-full rounded-full bg-primary transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
             </div>
             {(guideStage === "disguise" || guideStage === "choose") && (
-              <div className="flex items-center justify-center gap-3 animate-fade-in" role="group" aria-label="Voice disguise">
-                {PRESETS.map((item) => {
-                  const PresetIcon = item.icon;
-                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
-                })}
+              <div className="flex flex-col items-center gap-3 animate-fade-in">
+                <div className="flex items-center justify-center gap-3" role="group" aria-label="Voice disguise">
+                  {PRESETS.map((item) => {
+                    const PresetIcon = item.icon;
+                    return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} aria-pressed={preset === item.id} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+                  })}
+                </div>
+                {guideStage === "choose" && (
+                  <IconButton label={`Keep ${PRESETS.find((item) => item.id === preset)?.label ?? "this voice"} and continue`} pulse disabled={isProcessing} onClick={confirmPreset}><Check /></IconButton>
+                )}
               </div>
             )}
           </>
