@@ -97,3 +97,100 @@ export async function makeReel(
 
   return new File([new Blob(chunks, { type: "video/mp4" })], "reel.mp4", { type: "video/mp4" });
 }
+
+function loadVideo(source: Blob): Promise<{ el: HTMLVideoElement; url: string }> {
+  const url = URL.createObjectURL(source);
+  const el = document.createElement("video");
+  el.playsInline = true;
+  el.preload = "auto";
+  el.muted = true;
+  el.src = url;
+  return new Promise((resolve, reject) => {
+    el.onloadeddata = () => resolve({ el, url });
+    el.onerror = () => reject(new Error("Couldn't read this video. Try an MP4 or MOV file."));
+  });
+}
+
+// Grabs a JPEG still from an uploaded video (used as the post's cover picture and for produce detection).
+export async function videoThumbnail(source: Blob): Promise<File> {
+  const { el, url } = await loadVideo(source);
+  await new Promise<void>((resolve) => {
+    el.onseeked = () => resolve();
+    el.currentTime = Math.min(0.5, (el.duration || 1) / 2);
+  });
+  const scale = Math.min(1, 1080 / el.videoWidth);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(el.videoWidth * scale);
+  canvas.height = Math.round(el.videoHeight * scale);
+  canvas.getContext("2d")!.drawImage(el, 0, 0, canvas.width, canvas.height);
+  URL.revokeObjectURL(url);
+  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read this video."))), "image/jpeg", 0.9));
+  return new File([blob], "cover.jpg", { type: "image/jpeg" });
+}
+
+// Re-encodes an uploaded video as a 9:16 MP4 Reel. Uses `audio` as the soundtrack when given,
+// otherwise keeps the video's own sound.
+export async function makeVideoReel(
+  source: Blob,
+  audio: Blob | null,
+  onProgress?: (fraction: number) => void,
+): Promise<File> {
+  const mime = pickMime();
+  if (!mime) throw new Error("This browser can't make videos. Please use Safari or Chrome.");
+  const { el, url } = await loadVideo(source);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  const draw = () => {
+    const vw = el.videoWidth || W;
+    const vh = el.videoHeight || H;
+    const cover = Math.max(W / vw, H / vh) * 1.15;
+    ctx.filter = "blur(40px) brightness(0.6)";
+    ctx.drawImage(el, (W - vw * cover) / 2, (H - vh * cover) / 2, vw * cover, vh * cover);
+    ctx.filter = "none";
+    const fit = Math.min(W / vw, H / vh);
+    ctx.drawImage(el, (W - vw * fit) / 2, (H - vh * fit) / 2, vw * fit, vh * fit);
+  };
+
+  const audioCtx = new AudioContext();
+  await audioCtx.resume();
+  const dest = audioCtx.createMediaStreamDestination();
+  let voice: AudioBufferSourceNode | null = null;
+  if (audio) {
+    voice = audioCtx.createBufferSource();
+    voice.buffer = await audioCtx.decodeAudioData(await audio.arrayBuffer());
+    voice.connect(dest);
+  } else {
+    el.muted = false;
+    audioCtx.createMediaElementSource(el).connect(dest);
+  }
+
+  const stream = new MediaStream([...canvas.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2_500_000 });
+  const chunks: Blob[] = [];
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  const done = new Promise<void>((resolve) => (rec.onstop = () => resolve()));
+
+  let raf = 0;
+  const tick = () => {
+    draw();
+    if (el.duration > 0 && Number.isFinite(el.duration)) onProgress?.(Math.min(1, el.currentTime / el.duration));
+    raf = requestAnimationFrame(tick);
+  };
+  el.currentTime = 0;
+  el.onended = () => setTimeout(() => rec.state !== "inactive" && rec.stop(), 200);
+  rec.start(1000);
+  await el.play();
+  voice?.start();
+  tick();
+  await done;
+
+  cancelAnimationFrame(raf);
+  voice?.stop();
+  stream.getTracks().forEach((t) => t.stop());
+  await audioCtx.close();
+  URL.revokeObjectURL(url);
+  return new File([new Blob(chunks, { type: "video/mp4" })], "reel.mp4", { type: "video/mp4" });
+}
