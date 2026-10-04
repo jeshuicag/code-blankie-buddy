@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Pause, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
+import { Check, Mic, Pause, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -107,6 +107,10 @@ export function VoiceRecorder({ recording, onChange, onGuideComplete }: { record
     setPreset(next); setError(null);
     if (rawRef.current) void applyPreset(rawRef.current, next);
     if (guideStage === "disguise") setGuideStage("second-play");
+  }
+
+  function confirmPreset() {
+    if (isProcessing) return;
     if (guideStage === "choose") onGuideComplete?.();
   }
 
