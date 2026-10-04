@@ -157,7 +157,7 @@ function Index() {
       const response = await fetch("/api/public/upload", { method: "POST", body: formData });
       if (!response.ok) throw new Error((await response.text()) || `Upload failed (${response.status})`);
       setResult((await response.json()) as UploadResult); setStatus("success");
-    } catch (error) { setProgress(null); if (reelFile) saveVideo(reelFile); setErrorMessage(error instanceof Error ? error.message : "Upload failed"); setStatus("error"); }
+    } catch (error) { setProgress(null); setErrorMessage(error instanceof Error ? error.message : "Upload failed"); setStatus("error"); }
   }
 
   function saveVideo(video: File) {
@@ -266,7 +266,7 @@ function Index() {
           {detecting && <span className="mt-5 h-2 w-2 animate-ping rounded-full bg-primary" aria-label="Recognizing produce" />}
           {status === "success" && result && <div className="mt-5 flex flex-col items-center gap-3 text-center text-sm text-foreground"><Check className="h-10 w-10 text-primary" /><span>{result.filename}</span></div>}
           {status === "error" && <p className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-center text-sm text-destructive">{errorMessage ?? "Something went wrong. Please try again."}</p>}
-          {status === "error" && reelFile && <div className="mt-3"><ActionButton label="Save the Reel to your files" variant="outline" onClick={() => saveVideo(reelFile)}><Download /><Film /></ActionButton></div>}
+          {step === "send" && status === "error" && reelFile && <div className="mt-3"><ActionButton label="Save the Reel to your files" variant="outline" onClick={() => saveVideo(reelFile)}><Download /><Film /></ActionButton></div>}
         </div>
       </main>
     </TooltipProvider>
