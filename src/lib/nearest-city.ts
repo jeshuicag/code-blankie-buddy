@@ -1,13 +1,40 @@
 // Offline nearest-city lookup. City list (GeoNames, pop ≥15k) lives in /cities.json
-// as [name, countryCode, lat, lon]; loaded only when first needed.
+// as [name, countryCode, lat, lon]. It is preloaded into Cache Storage when the app
+// opens (see preloadCities), so the first 📍 tap is instant and works offline.
 type City = [string, string, number, number];
+const CACHE_NAME = "photo-app-data";
+const CITIES_URL = "/cities.json";
 let cache: Promise<City[]> | null = null;
 
+// Call once on app start; downloads the list into Cache Storage in the background.
+export function preloadCities(): void {
+  if (typeof caches === "undefined") return;
+  caches
+    .open(CACHE_NAME)
+    .then(async (c) => {
+      if (!(await c.match(CITIES_URL))) await c.add(CITIES_URL);
+    })
+    .catch(() => {
+      /* preload is best-effort; loadCities fetches on demand */
+    });
+}
+
 function loadCities() {
-  cache ??= fetch("/cities.json").then((r) => {
-    if (!r.ok) throw new Error("Could not load city list");
-    return r.json() as Promise<City[]>;
-  });
+  cache ??= (async () => {
+    // Prefer the preloaded copy; fall back to the network (and store it).
+    if (typeof caches !== "undefined") {
+      const c = await caches.open(CACHE_NAME);
+      const hit = await c.match(CITIES_URL);
+      if (hit) return (await hit.json()) as City[];
+      const res = await fetch(CITIES_URL);
+      if (!res.ok) throw new Error("Could not load city list");
+      await c.put(CITIES_URL, res.clone());
+      return (await res.json()) as City[];
+    }
+    const res = await fetch(CITIES_URL);
+    if (!res.ok) throw new Error("Could not load city list");
+    return (await res.json()) as City[];
+  })();
   return cache;
 }
 
