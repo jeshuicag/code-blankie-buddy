@@ -1,286 +1,169 @@
 import { useEffect, useRef, useState } from "react";
+import { Mic, Play, RotateCcw, Shield, Square, Trash2, UserRound, Volume2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-export const MIN_SECONDS = 3; // Instagram Reels minimum
-export const MAX_SECONDS = 90; // Instagram Reels maximum
+export const MIN_SECONDS = 3;
+export const MAX_SECONDS = 90;
 
 type VoicePreset = "normal" | "deep" | "high";
+type GuideStage = "record" | "first-play" | "disguise" | "second-play" | "choose";
 
-const PRESETS: { id: VoicePreset; label: string; ratio: number }[] = [
-  { id: "normal", label: "🎙 Normal", ratio: 1 },
-  { id: "deep", label: "🕵️ Deep", ratio: 0.72 },
-  { id: "high", label: "🐿 High", ratio: 1.35 },
+const PRESETS: { id: VoicePreset; label: string; ratio: number; icon: typeof UserRound }[] = [
+  { id: "normal", label: "Normal voice", ratio: 1, icon: UserRound },
+  { id: "deep", label: "Deep disguise", ratio: 0.72, icon: Shield },
+  { id: "high", label: "High disguise", ratio: 1.35, icon: Volume2 },
 ];
 
-// Tiny pitch shifter (two crossfaded modulated delay taps) running in an
-// AudioWorklet, entirely on the device. Loaded from a Blob — no library.
 const WORKLET_CODE = `
 class PitchShifter extends AudioWorkletProcessor {
-  static get parameterDescriptors() {
-    return [{ name: "ratio", defaultValue: 1, minValue: 0.5, maxValue: 2 }];
-  }
-  constructor() {
-    super();
-    this.delay = Math.floor(0.06 * sampleRate);
-    this.size = this.delay * 2;
-    this.buf = new Float32Array(this.size);
-    this.wp = 0;
-    this.phase = 0;
-  }
-  readAt(offset) {
-    let idx = this.wp - offset;
-    idx = ((idx % this.size) + this.size) % this.size;
-    const i0 = Math.floor(idx);
-    const i1 = (i0 + 1) % this.size;
-    const f = idx - i0;
-    return this.buf[i0] * (1 - f) + this.buf[i1] * f;
-  }
-  process(inputs, outputs, parameters) {
-    const inp = inputs[0] && inputs[0][0];
-    const out = outputs[0][0];
-    if (!inp) return true;
-    const ratio = parameters.ratio[0];
-    for (let i = 0; i < out.length; i++) {
-      this.buf[this.wp] = inp[i];
-      this.phase += (1 - ratio) / this.delay;
-      this.phase -= Math.floor(this.phase);
-      const p2 = (this.phase + 0.5) % 1;
-      const g1 = Math.sin(Math.PI * this.phase);
-      const g2 = Math.sin(Math.PI * p2);
-      out[i] = g1 * this.readAt(this.phase * this.delay) + g2 * this.readAt(p2 * this.delay);
-      this.wp = (this.wp + 1) % this.size;
-    }
-    return true;
-  }
+  static get parameterDescriptors() { return [{ name: "ratio", defaultValue: 1, minValue: 0.5, maxValue: 2 }]; }
+  constructor() { super(); this.delay = Math.floor(0.06 * sampleRate); this.size = this.delay * 2; this.buf = new Float32Array(this.size); this.wp = 0; this.phase = 0; }
+  readAt(offset) { let idx = this.wp - offset; idx = ((idx % this.size) + this.size) % this.size; const i0 = Math.floor(idx); const i1 = (i0 + 1) % this.size; const f = idx - i0; return this.buf[i0] * (1 - f) + this.buf[i1] * f; }
+  process(inputs, outputs, parameters) { const inp = inputs[0] && inputs[0][0]; const out = outputs[0][0]; if (!inp) return true; const ratio = parameters.ratio[0]; for (let i = 0; i < out.length; i++) { this.buf[this.wp] = inp[i]; this.phase += (1 - ratio) / this.delay; this.phase -= Math.floor(this.phase); const p2 = (this.phase + 0.5) % 1; const g1 = Math.sin(Math.PI * this.phase); const g2 = Math.sin(Math.PI * p2); out[i] = g1 * this.readAt(this.phase * this.delay) + g2 * this.readAt(p2 * this.delay); this.wp = (this.wp + 1) % this.size; } return true; }
 }
 registerProcessor("pitch-shifter", PitchShifter);
 `;
 
 let workletUrl: string | null = null;
 function getWorkletUrl(): string {
-  if (!workletUrl) {
-    workletUrl = URL.createObjectURL(new Blob([WORKLET_CODE], { type: "application/javascript" }));
-  }
+  if (!workletUrl) workletUrl = URL.createObjectURL(new Blob([WORKLET_CODE], { type: "application/javascript" }));
   return workletUrl;
 }
 
-// Renders `raw` through the pitch shifter offline and returns a WAV blob.
 async function pitchShift(raw: Blob, ratio: number): Promise<Blob> {
   const decodeCtx = new AudioContext();
   const buffer = await decodeCtx.decodeAudioData(await raw.arrayBuffer());
   await decodeCtx.close();
-
   const offline = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
   await offline.audioWorklet.addModule(getWorkletUrl());
   const src = offline.createBufferSource();
   src.buffer = buffer;
   const shifter = new AudioWorkletNode(offline, "pitch-shifter");
-  shifter.parameters.get("ratio")!.value = ratio;
+  const ratioParameter = shifter.parameters.get("ratio");
+  if (ratioParameter) ratioParameter.value = ratio;
   src.connect(shifter).connect(offline.destination);
   src.start();
-  const rendered = await offline.startRendering();
-  return audioBufferToWav(rendered);
+  return audioBufferToWav(await offline.startRendering());
 }
 
-// Minimal 16-bit PCM WAV encoder.
 function audioBufferToWav(buffer: AudioBuffer): Blob {
   const data = buffer.getChannelData(0);
   const bytes = new DataView(new ArrayBuffer(44 + data.length * 2));
   const writeStr = (off: number, s: string) => {
     for (let i = 0; i < s.length; i++) bytes.setUint8(off + i, s.charCodeAt(i));
   };
-  writeStr(0, "RIFF");
-  bytes.setUint32(4, 36 + data.length * 2, true);
-  writeStr(8, "WAVE");
-  writeStr(12, "fmt ");
-  bytes.setUint32(16, 16, true);
-  bytes.setUint16(20, 1, true); // PCM
-  bytes.setUint16(22, 1, true); // mono
-  bytes.setUint32(24, buffer.sampleRate, true);
-  bytes.setUint32(28, buffer.sampleRate * 2, true);
-  bytes.setUint16(32, 2, true);
-  bytes.setUint16(34, 16, true);
-  writeStr(36, "data");
-  bytes.setUint32(40, data.length * 2, true);
-  for (let i = 0; i < data.length; i++) {
-    const s = Math.max(-1, Math.min(1, data[i] ?? 0));
-    bytes.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
+  writeStr(0, "RIFF"); bytes.setUint32(4, 36 + data.length * 2, true); writeStr(8, "WAVE"); writeStr(12, "fmt ");
+  bytes.setUint32(16, 16, true); bytes.setUint16(20, 1, true); bytes.setUint16(22, 1, true);
+  bytes.setUint32(24, buffer.sampleRate, true); bytes.setUint32(28, buffer.sampleRate * 2, true);
+  bytes.setUint16(32, 2, true); bytes.setUint16(34, 16, true); writeStr(36, "data"); bytes.setUint32(40, data.length * 2, true);
+  for (let i = 0; i < data.length; i++) { const s = Math.max(-1, Math.min(1, data[i] ?? 0)); bytes.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
   return new Blob([bytes.buffer], { type: "audio/wav" });
 }
 
-export function VoiceRecorder({
-  recording,
-  onChange,
-}: {
-  recording: Blob | null;
-  onChange: (blob: Blob | null) => void;
-}) {
+function IconButton({ label, pulse = false, active = false, children, ...props }: React.ComponentProps<typeof Button> & { label: string; pulse?: boolean; active?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button aria-label={label} title={label} variant={active ? "default" : "outline"} size="icon" className={`h-14 w-14 ${pulse ? "guide-pulse" : ""}`} {...props}>{children}</Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+export function VoiceRecorder({ recording, onChange, onGuideComplete }: { recording: Blob | null; onChange: (blob: Blob | null) => void; onGuideComplete?: () => void }) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [preset, setPreset] = useState<VoicePreset>("normal");
+  const [guideStage, setGuideStage] = useState<GuideStage>(recording ? "first-play" : "record");
   const rawRef = useRef<Blob | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    if (!recording) {
-      setUrl(null);
-      return;
-    }
-    const u = URL.createObjectURL(recording);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
+    if (!recording) { setUrl(null); return; }
+    const nextUrl = URL.createObjectURL(recording); setUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
   }, [recording]);
-
   useEffect(() => () => stop(), []);
 
-  // Re-process the kept raw recording whenever the preset changes.
   async function applyPreset(raw: Blob, next: VoicePreset) {
-    const ratio = PRESETS.find((p) => p.id === next)!.ratio;
-    if (ratio === 1) {
-      onChange(raw);
-      return;
-    }
+    const selected = PRESETS.find((item) => item.id === next);
+    if (!selected || selected.ratio === 1) { onChange(raw); return; }
     setIsProcessing(true);
-    try {
-      onChange(await pitchShift(raw, ratio));
-    } catch {
-      setError("Voice disguise isn't supported here — keeping your normal voice.");
-      onChange(raw);
-    } finally {
-      setIsProcessing(false);
-    }
+    try { onChange(await pitchShift(raw, selected.ratio)); }
+    catch { setError("Voice disguise isn't supported here — keeping your normal voice."); onChange(raw); }
+    finally { setIsProcessing(false); }
   }
 
   function pickPreset(next: VoicePreset) {
-    setPreset(next);
-    setError(null);
+    setPreset(next); setError(null);
     if (rawRef.current) void applyPreset(rawRef.current, next);
+    if (guideStage === "disguise") setGuideStage("second-play");
   }
 
   async function start() {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      const chunks: Blob[] = [];
-      const startedAt = Date.now();
-      rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      const rec = new MediaRecorder(stream); const chunks: Blob[] = []; const startedAt = Date.now();
+      rec.ondataavailable = (event) => event.data.size && chunks.push(event.data);
       rec.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((track) => track.stop());
         if (timerRef.current) clearInterval(timerRef.current);
         setIsRecording(false);
-        const secs = (Date.now() - startedAt) / 1000;
-        if (secs < MIN_SECONDS) {
-          setError(`Recordings must be at least ${MIN_SECONDS} seconds long.`);
-          return;
-        }
-        const raw = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
-        rawRef.current = raw;
-        void applyPreset(raw, preset);
+        if ((Date.now() - startedAt) / 1000 < MIN_SECONDS) { setError(`Recordings must be at least ${MIN_SECONDS} seconds long.`); return; }
+        const raw = new Blob(chunks, { type: rec.mimeType || "audio/webm" }); rawRef.current = raw;
+        void applyPreset(raw, preset); setGuideStage("first-play");
       };
-      recorderRef.current = rec;
-      rec.start();
-      setSeconds(0);
-      setIsRecording(true);
-      timerRef.current = window.setInterval(() => {
-        const s = Math.floor((Date.now() - startedAt) / 1000);
-        setSeconds(s);
-        if (s >= MAX_SECONDS) stop();
-      }, 250);
-    } catch {
-      setError("Couldn't use the microphone. Please allow microphone access.");
-    }
+      recorderRef.current = rec; rec.start(); setSeconds(0); setIsRecording(true);
+      timerRef.current = window.setInterval(() => { const elapsed = Math.floor((Date.now() - startedAt) / 1000); setSeconds(elapsed); if (elapsed >= MAX_SECONDS) stop(); }, 250);
+    } catch { setError("Couldn't use the microphone. Please allow microphone access."); }
   }
 
-  function stop() {
-    const rec = recorderRef.current;
-    if (rec && rec.state !== "inactive") rec.stop();
-    recorderRef.current = null;
-  }
-
-  function clear() {
-    rawRef.current = null;
-    onChange(null);
+  function stop() { const rec = recorderRef.current; if (rec && rec.state !== "inactive") rec.stop(); recorderRef.current = null; }
+  function clear() { rawRef.current = null; onChange(null); setGuideStage("record"); setPreset("normal"); }
+  function play() {
+    void audioRef.current?.play();
+    if (guideStage === "first-play") setGuideStage("disguise");
+    else if (guideStage === "second-play") { setGuideStage("choose"); onGuideComplete?.(); }
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-border p-3">
-      <p className="text-sm font-medium text-foreground">Voice recording (optional)</p>
-      <p className="text-xs text-muted-foreground">
-        Add your voice to turn the picture into a Reel. {MIN_SECONDS}–{MAX_SECONDS} seconds.
-      </p>
-
-      <div className="mt-3">
-        <p className="text-xs font-medium text-muted-foreground">Voice disguise</p>
-        <div className="mt-1 grid grid-cols-3 gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              disabled={isRecording || isProcessing}
-              onClick={() => pickPreset(p.id)}
-              className={`rounded-md border px-2 py-2 text-xs font-medium ${
-                preset === p.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-input bg-background text-foreground hover:bg-accent"
-              } disabled:opacity-50`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+    <TooltipProvider delayDuration={250}>
+      <div className="flex flex-col items-center gap-3 py-2">
+        <audio ref={audioRef} src={url ?? undefined} className="hidden" />
+        {isRecording ? (
+          <IconButton label={`Stop recording, ${seconds} seconds`} pulse onClick={stop} variant="destructive"><Square /></IconButton>
+        ) : !recording ? (
+          <IconButton label="Record voice" pulse={guideStage === "record"} onClick={() => void start()}><Mic /></IconButton>
+        ) : (
+          <>
+            <div className="flex items-center justify-center gap-3">
+              <IconButton label="Play recording" pulse={guideStage === "first-play" || guideStage === "second-play"} onClick={play} disabled={isProcessing}><Play /></IconButton>
+              <IconButton label="Record again" onClick={() => { clear(); void start(); }}><RotateCcw /></IconButton>
+              <IconButton label="Delete recording" onClick={clear}><Trash2 /></IconButton>
+            </div>
+            {(guideStage === "disguise" || guideStage === "second-play" || guideStage === "choose") && (
+              <div className="flex items-center justify-center gap-3 animate-fade-in">
+                {PRESETS.map((item) => {
+                  const PresetIcon = item.icon;
+                  const visible = guideStage === "choose" || item.id === "deep";
+                  if (!visible) return null;
+                  return <IconButton key={item.id} label={item.label} active={preset === item.id} pulse={guideStage === "disguise" && item.id === "deep"} disabled={isProcessing} onClick={() => pickPreset(item.id)}><PresetIcon /></IconButton>;
+                })}
+              </div>
+            )}
+          </>
+        )}
+        {isProcessing && <span className="h-2 w-2 animate-ping rounded-full bg-primary" aria-label="Changing voice" />}
+        {error && <p className="text-center text-xs text-destructive">{error}</p>}
       </div>
-
-      {isRecording ? (
-        <button
-          type="button"
-          onClick={stop}
-          className="mt-3 w-full rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground"
-        >
-          ⏹ Stop recording ({seconds}s)
-        </button>
-      ) : url ? (
-        <div className="mt-3">
-          <audio src={url} controls className="w-full" />
-          {isProcessing && (
-            <p className="mt-1 text-xs text-muted-foreground">Changing voice…</p>
-          )}
-          <div className="mt-2 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                clear();
-                void start();
-              }}
-              className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
-            >
-              🔁 Redo
-            </button>
-            <button
-              type="button"
-              onClick={clear}
-              className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-destructive hover:bg-accent"
-            >
-              🗑 Delete
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={start}
-          disabled={isProcessing}
-          className="mt-3 w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
-        >
-          🎙 Record voice
-        </button>
-      )}
-
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-    </div>
+    </TooltipProvider>
   );
 }
