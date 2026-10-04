@@ -179,10 +179,11 @@ export async function makeVideoReel(
   let raf = 0;
   const tick = () => {
     draw();
-    if (el.duration > 0 && Number.isFinite(el.duration)) onProgress?.(Math.min(1, el.currentTime / el.duration));
+    if (end > trimStart) onProgress?.(Math.min(1, (el.currentTime - trimStart) / (end - trimStart)));
+    if (el.currentTime >= end) rec.state !== "inactive" && rec.stop();
     raf = requestAnimationFrame(tick);
   };
-  el.currentTime = 0;
+  el.currentTime = trimStart;
   el.onended = () => setTimeout(() => rec.state !== "inactive" && rec.stop(), 200);
   rec.start(1000);
   await el.play();
