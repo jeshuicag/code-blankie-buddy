@@ -5,3 +5,6 @@
 - [x] Guide key save and restore before photo selection
 - [x] Guide crop, voice preview, disguise preview, location, phone, and send
 - [x] Verify the sequence at desktop and phone sizes without posting
+- [x] Video upload: skip crop, optional voice (skippable), disguise still applies, trim >10s videos
+- [x] Save the reel to files when sending fails
+- [x] Greyed-out trim slider sections; post-trim preview shows only the chosen 10 seconds (verified in app)
