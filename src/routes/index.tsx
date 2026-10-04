@@ -59,6 +59,7 @@ function Index() {
   const [detecting, setDetecting] = useState(false);
   const [caption, setCaption] = useState("");
   const [captionEdited, setCaptionEdited] = useState(false);
+  const [confirmingKeySave, setConfirmingKeySave] = useState(false);
 
   useEffect(() => {
     preloadProduceModel();
@@ -104,9 +105,22 @@ function Index() {
   // restore it later (e.g. after clearing browser data or switching phones).
   async function saveKeyFile() {
     if (!userId) return;
+    // If a key file was already saved from this device for this ID,
+    // ask first — a new copy would be identical to the old one.
+    if (localStorage.getItem("photoKeySaved") === userId) {
+      setConfirmingKeySave(true);
+      return;
+    }
+    await performKeySave();
+  }
+
+  async function performKeySave() {
+    if (!userId) return;
+    setConfirmingKeySave(false);
     const contents = `Photo Upload key file\nKeep this file safe. It restores your personal Instagram hashtag.\n\n${userId}\n`;
     const filename = `photo-key-${userId.slice(0, 8)}.txt`;
     const file = new File([contents], filename, { type: "text/plain" });
+    localStorage.setItem("photoKeySaved", userId);
 
     // On phones, the share sheet is the reliable way to save a file.
     const isPhone = window.matchMedia("(pointer: coarse)").matches;
@@ -141,6 +155,7 @@ function Index() {
       return;
     }
     localStorage.setItem("photoUserId", match[0]);
+    localStorage.setItem("photoKeySaved", match[0]);
     setUserId(match[0]);
     setStatus("idle");
     setErrorMessage(null);
@@ -260,6 +275,30 @@ function Index() {
                 Restore key
               </button>
             </div>
+            {confirmingKeySave && (
+              <div className="mt-2 rounded-md border border-border bg-background p-3">
+                <p className="text-xs text-foreground">
+                  You already saved a key file from this device. A new copy is
+                  identical — same ID, same hashtag. Save another copy anyway?
+                </p>
+                <div className="mt-2 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void performKeySave()}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    Save another copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingKeySave(false)}
+                    className="font-medium text-muted-foreground underline-offset-4 hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             <input
               ref={keyFileInputRef}
               type="file"
