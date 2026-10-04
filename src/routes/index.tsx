@@ -214,11 +214,9 @@ function Index() {
 
           {step === "voice" && (
             <div className="flex flex-col items-center gap-3 animate-fade-in">
-              {sourceVideoUrl ? (trimEnd !== null ? (
-                <video src={`${sourceVideoUrl}#t=${trimStart.toFixed(1)},${trimEnd.toFixed(1)}`} controls playsInline onTimeUpdate={clampTrimmedPlayback} className="max-h-52 w-full rounded-md border border-border bg-foreground" />
-              ) : (
+              {sourceVideoUrl ? (
                 <video src={sourceVideoUrl} controls playsInline className="max-h-52 w-full rounded-md border border-border bg-foreground" />
-              )) : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
+              ) : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
               <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} skipSource={sourceVideo} />
               {!voice && !sourceVideo && <ActionButton label="Continue without voice" variant="ghost" onClick={() => setStep("location")}><ChevronRight /></ActionButton>}
             </div>
