@@ -166,7 +166,7 @@ function Index() {
       const cut = await makeVideoReel(sourceVideo, null, setProgress, start, start + MAX_VIDEO_SECONDS);
       if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl);
       setSourceVideo(cut); setSourceVideoUrl(URL.createObjectURL(cut));
-      setTrimStart(0); setTrimEnd(null); setTrimming(false);
+      setTrimming(false);
       const cover = await videoThumbnail(cut, MAX_VIDEO_SECONDS / 2);
       setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
     } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't cut this video."); setStatus("error"); }
