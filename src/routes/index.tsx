@@ -94,8 +94,6 @@ function Index() {
   const [sourceVideo, setSourceVideo] = useState<File | null>(null);
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
   const [trimming, setTrimming] = useState(false);
-  const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState<number | null>(null);
 
   useEffect(() => { preloadProduceModel(); void import("@/lib/nearest-city").then((module) => module.preloadCities()); }, []);
   useEffect(() => {
@@ -125,7 +123,6 @@ function Index() {
         });
         setSourceVideo(selected); setSourceVideoUrl(url);
         if (duration > MAX_VIDEO_SECONDS + 0.5) { setTrimming(true); return; }
-        setTrimEnd(null);
         const cover = await videoThumbnail(selected);
         setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
       } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't read this video."); setStatus("error"); }
@@ -143,7 +140,7 @@ function Index() {
     setStatus("uploading"); setErrorMessage(null);
     try {
       if ((voice || sourceVideo) && !reelFile) {
-        setProgress(0); const reel = sourceVideo ? await makeVideoReel(sourceVideo, voice, setProgress, trimStart, trimStart + MAX_VIDEO_SECONDS) : await makeReel(file, voice!, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
+        setProgress(0); const reel = sourceVideo ? await makeVideoReel(sourceVideo, voice, setProgress) : await makeReel(file, voice!, setProgress); setProgress(null); setReelFile(reel); setReelUrl(URL.createObjectURL(reel)); setStatus("idle"); return;
       }
       const formData = new FormData(); formData.append("picture", file); formData.append("userId", userId);
       if (location.trim()) formData.append("location", location.trim()); if (phone.trim()) formData.append("phone", phone.trim()); if (caption.trim()) formData.append("caption", caption.trim()); if (reelFile) formData.append("video", reelFile);
@@ -160,17 +157,24 @@ function Index() {
     setTimeout(() => URL.revokeObjectURL(href), 60_000);
   }
 
-  // Keeps a trimmed preview inside the chosen 10 seconds: jumps back when
-  // scrubbed before the clip, and pauses at its end.
-  function clampTrimmedPlayback(event: React.SyntheticEvent<HTMLVideoElement>) {
-    if (trimEnd === null) return;
-    const video = event.currentTarget;
-    if (video.currentTime < trimStart - 0.25) video.currentTime = trimStart;
-    else if (video.currentTime >= trimEnd) { video.pause(); video.currentTime = trimEnd; }
+  // Cuts the uploaded video down to the chosen 10 seconds: builds a new video
+  // containing only that clip, and uses it for the preview and every later step.
+  async function cutVideo(start: number) {
+    if (!sourceVideo) return;
+    setProgress(0); setErrorMessage(null);
+    try {
+      const cut = await makeVideoReel(sourceVideo, null, setProgress, start, start + MAX_VIDEO_SECONDS);
+      if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl);
+      setSourceVideo(cut); setSourceVideoUrl(URL.createObjectURL(cut));
+      setTrimming(false);
+      const cover = await videoThumbnail(cut, MAX_VIDEO_SECONDS / 2);
+      setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice");
+    } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Couldn't cut this video."); setStatus("error"); }
+    finally { setProgress(null); }
   }
 
   function resetPhoto() {
-    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false); setTrimStart(0); setTrimEnd(null);
+    if (sourceVideoUrl) URL.revokeObjectURL(sourceVideoUrl); setSourceVideo(null); setSourceVideoUrl(null); setTrimming(false);
     if (previewUrl && previewUrl !== originalUrl) URL.revokeObjectURL(previewUrl); if (originalUrl) URL.revokeObjectURL(originalUrl); clearReel();
     setFile(null); setPreviewUrl(null); setOriginalUrl(null); setCropping(false); setVoice(null); setStatus("idle"); setResult(null); setErrorMessage(null); setStep("photo");
     if (libraryInputRef.current) libraryInputRef.current.value = "";
@@ -195,7 +199,10 @@ function Index() {
           )}
 
           {step === "photo" && trimming && sourceVideoUrl && (
-            <VideoTrimmer src={sourceVideoUrl} onCancel={resetPhoto} onDone={(start) => { setTrimStart(start); setTrimEnd(start + MAX_VIDEO_SECONDS); setTrimming(false); void videoThumbnail(sourceVideo!, start + MAX_VIDEO_SECONDS / 2).then((cover) => { setFile(cover); setPreviewUrl(URL.createObjectURL(cover)); setStep("voice"); }).catch(() => setStep("voice")); }} />
+            <div className="flex w-full flex-col items-center gap-3">
+              <VideoTrimmer src={sourceVideoUrl} onCancel={resetPhoto} onDone={(start) => void cutVideo(start)} />
+              {progress !== null && <progress className="h-2 w-full accent-primary" max={1} value={progress} aria-label="Cutting video" />}
+            </div>
           )}
 
           {step === "photo" && cropping && previewUrl && (
@@ -204,11 +211,9 @@ function Index() {
 
           {step === "voice" && (
             <div className="flex flex-col items-center gap-3 animate-fade-in">
-              {sourceVideoUrl ? (trimEnd !== null ? (
-                <video src={`${sourceVideoUrl}#t=${trimStart.toFixed(1)},${trimEnd.toFixed(1)}`} controls playsInline onTimeUpdate={clampTrimmedPlayback} className="max-h-52 w-full rounded-md border border-border bg-foreground" />
-              ) : (
+              {sourceVideoUrl ? (
                 <video src={sourceVideoUrl} controls playsInline className="max-h-52 w-full rounded-md border border-border bg-foreground" />
-              )) : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
+              ) : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
               <VoiceRecorder recording={voice} onChange={(nextVoice) => { clearReel(); setVoice(nextVoice); }} onGuideComplete={() => setStep("location")} skipSource={sourceVideo} />
               {!voice && !sourceVideo && <ActionButton label="Continue without voice" variant="ghost" onClick={() => setStep("location")}><ChevronRight /></ActionButton>}
             </div>
