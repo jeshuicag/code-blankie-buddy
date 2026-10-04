@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft,
   Check,
   Download,
   ChevronRight,
@@ -66,17 +65,6 @@ function StepPath({ current }: { current: GuideStep }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function BackButton({ onClick, disabled = false }: { onClick: () => void; disabled?: boolean }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-12 w-12" aria-label="Go back" title="Go back" disabled={disabled} onClick={onClick}><ArrowLeft /></Button>
-      </TooltipTrigger>
-      <TooltipContent>Go back</TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -209,14 +197,6 @@ function Index() {
     finally { setLocating(false); setGpsCountdown(null); }
   }
 
-  function goBack() {
-    if (building) return;
-    if (step === "voice") { if (!cropping && !trimming) setStep("photo"); }
-    else if (step === "location") setStep("voice");
-    else if (step === "phone") setStep("location");
-    else if (step === "send") setStep("phone");
-  }
-
   return (
     <TooltipProvider delayDuration={250}>
       <main className="min-h-screen bg-background px-4 py-8">
@@ -241,7 +221,6 @@ function Index() {
 
           {step === "voice" && (
             <div className="flex flex-col items-center gap-3 animate-fade-in">
-              <BackButton onClick={goBack} disabled={building} />
               {sourceVideoUrl ? (
                 <video src={reelUrl ?? sourceVideoUrl} controls playsInline onLoadedMetadata={(e) => { if (!reelUrl && Number.isFinite(e.currentTarget.duration)) setVideoSeconds(e.currentTarget.duration); }} className="max-h-52 w-full rounded-md border border-border bg-foreground" />
               ) : previewUrl && <img src={previewUrl} alt="Selected crop" className="max-h-52 w-full rounded-md border border-border object-contain" />}
@@ -264,7 +243,6 @@ function Index() {
           {step === "phone" && (
             <div className="flex w-full flex-col items-center gap-4 animate-fade-in">
               <div className="flex w-full items-center gap-3">
-                <BackButton onClick={goBack} />
                 <label className="guide-pulse flex h-16 flex-1 items-center rounded-md border border-primary bg-background px-4"><Phone className="mr-3 h-6 w-6 text-primary" /><input ref={phoneInputRef} type="tel" inputMode="tel" autoFocus value={phone} onChange={(event) => setPhone(event.target.value.slice(0, 20))} maxLength={20} aria-label="Phone number" className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label>
                 <ActionButton label="Continue" variant="outline" onClick={() => setStep("send")}><ChevronRight /></ActionButton>
               </div>
@@ -277,7 +255,6 @@ function Index() {
               {reelUrl ? <video src={reelUrl} controls playsInline className="max-h-96 w-full rounded-md border border-border bg-foreground" /> : previewUrl && <img src={previewUrl} alt="Ready to send" className="max-h-72 w-full rounded-md border border-border object-contain" />}
               <textarea value={caption} onChange={(event) => setCaption(event.target.value.slice(0, 2000))} maxLength={2000} rows={3} aria-label="Post caption" className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary" />
               <div className="flex items-center gap-3">
-                <BackButton onClick={goBack} disabled={building} />
                 <ActionButton label="Start over with another picture" variant="outline" onClick={resetPhoto}><RotateCcw /></ActionButton>
                 <ActionButton label={reelFile ? "Send Reel" : "Send picture"} pulse={!building} disabled={!file || !userId || status === "uploading" || building || ((!!voice || !!sourceVideo) && !reelFile)} onClick={() => void sendPicture()}>
                   {reelFile ? <Send /> : building ? <Film /> : <Upload />}
