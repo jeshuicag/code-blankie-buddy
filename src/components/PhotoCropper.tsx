@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
+import smartcrop from "smartcrop";
 
 // Instagram feed aspect ratios (all within the allowed 4:5 – 1.91:1 range).
 const RATIOS = [
@@ -42,6 +43,41 @@ export function PhotoCropper({
   const [aspect, setAspect] = useState(1);
   const [area, setArea] = useState<Area | null>(null);
   const [busy, setBusy] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Suggest an aesthetic starting crop: find the most interesting region of
+  // the photo (faces, detail, color) on the device and center the box on it.
+  useEffect(() => {
+    let cancelled = false;
+    const el = containerRef.current;
+    if (!el) return;
+    const img = new Image();
+    img.src = src;
+    img
+      .decode()
+      .then(() => smartcrop.crop(img, { width: Math.round(100 * aspect), height: 100, minScale: 1 }))
+      .then((result) => {
+        if (cancelled) return;
+        const r = result.topCrop;
+        const cw = el.clientWidth;
+        const ch = el.clientHeight;
+        const fit = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+        const nextZoom = Math.min(
+          3,
+          Math.max(1, Math.min(cw / (r.width * fit), ch / (r.height * fit))),
+        );
+        const dispW = img.naturalWidth * fit * nextZoom;
+        const dispH = img.naturalHeight * fit * nextZoom;
+        const regionCenterX = (r.x + r.width / 2) * fit * nextZoom;
+        const regionCenterY = (r.y + r.height / 2) * fit * nextZoom;
+        setZoom(nextZoom);
+        setCrop({ x: dispW / 2 - regionCenterX, y: dispH / 2 - regionCenterY });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [src, aspect]);
 
   async function apply() {
     if (!area) return;
@@ -55,7 +91,7 @@ export function PhotoCropper({
 
   return (
     <div className="mt-5">
-      <div className="relative h-72 overflow-hidden rounded-xl border border-border bg-muted">
+      <div ref={containerRef} className="relative h-72 overflow-hidden rounded-xl border border-border bg-muted">
         <Cropper
           image={src}
           crop={crop}
